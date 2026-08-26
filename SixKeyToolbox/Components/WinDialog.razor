@@ -1,0 +1,29 @@
+﻿
+@code {
+	[Parameter]
+	public bool IsOpen { get; set; } = true;
+	[Parameter]
+	public string DefaultClass { get; set; } = "dialog fixed-dialog is-xl";
+	[Parameter]
+	public string Classes { get; set; } = "";
+	[Parameter]
+	public string Id { get; set; } = "";
+
+	[EditorRequired]
+	[Parameter]
+	public required RenderFragment ChildContent { get; set; }
+	[EditorRequired]
+	[Parameter]
+	public required string Title { get; set; }
+
+	private string DialogClasses => $"{this.DefaultClass.TrimEnd()} {this.Classes}";
+    
+}
+<dialog class="@DialogClasses" id="@Id">
+	<div class="dialog-header">
+		<h2>@Title</h2>
+	</div>
+	<div class="dialog-body">
+		@ChildContent
+	</div>
+</dialog>

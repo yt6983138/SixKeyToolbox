@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>preview</LangVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Coosu.Api" Version="2.5.1" />
+		<PackageReference Include="Coosu.Beatmap" Version="2.5.1" />
+		<PackageReference Include="Coosu.Database" Version="2.5.1" />
+		<PackageReference Include="StarRatingRebirth" Version="0.1.1" />
+	</ItemGroup>
+
+</Project>
