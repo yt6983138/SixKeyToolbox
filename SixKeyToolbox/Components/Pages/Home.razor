@@ -1,7 +1,65 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Home — SixKeyToolbox</PageTitle>
 
-<InputFile OnChange="HandleFileSelected"/>
-<span>Star rating: @StarRating</span>
+<WinDialog Title="SixKeyToolbox">
+    <p>A local toolbox for osu!mania 6K players. Pick a tool below to get started.</p>
 
+    @if (this.IsUpdating)
+    {
+        <p class="muted">Calculating ratings… this may take a moment.</p>
+    }
+    else if (this.StatsError is null)
+    {
+        <div class="home-stats">
+            <div class="stat">
+                <span class="stat-value">@this.TotalPlays</span>
+                <span class="stat-label">6K plays</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value">@this.TopRatingText</span>
+                <span class="stat-label">top rating</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <p class="muted">@this.StatsError</p>
+    }
+
+    <div class="home-cards">
+        <a class="card" href="/difficulty">
+            <h3>Difficulty Estimator</h3>
+            <p>Input a beatmap to get its chart constant; optionally add accuracy or judgements for a rating.</p>
+        </a>
+        <a class="card" href="/rating">
+            <h3>Rating</h3>
+            <p>Read your local plays and list them sorted by rating, high to low.</p>
+        </a>
+        <a class="card" href="/dan-split">
+            <h3>Dan Splitting</h3>
+            <p>Split a beatmap into a 4-song dan with density and music preview.</p>
+        </a>
+        <a class="card" href="/dan-calc">
+            <h3>Dan Calculating</h3>
+            <p>Feed a replay and transition accuracies to back-solve per-song accuracy.</p>
+        </a>
+        <a class="card" href="/ln-convert">
+            <h3>LN Converting</h3>
+            <p>Batch-convert beatmaps to inverse LNs with selectable gap size and OD.</p>
+        </a>
+    </div>
+</WinDialog>
+
+<style>
+    .home-stats { display: flex; gap: 2rem; margin: 1rem 0 1.5rem; }
+    .home-stats .stat { display: flex; flex-direction: column; }
+    .home-stats .stat-value { font-size: 2rem; font-weight: 600; }
+    .home-stats .stat-label { font-size: .85rem; opacity: .7; }
+    .home-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+    .home-cards .card { display: block; padding: 1rem 1.25rem; text-decoration: none; border: 1px solid var(--dialog-border, #444); }
+    .home-cards .card:hover { background: rgba(255,255,255,.06); }
+    .home-cards .card h3 { margin: 0 0 .4rem; }
+    .home-cards .card p { margin: 0; font-size: .85rem; opacity: .8; }
+    .muted { opacity: .6; }
+</style>

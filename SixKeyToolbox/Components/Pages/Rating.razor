@@ -1,0 +1,63 @@
+@page "/rating"
+
+<PageTitle>Rating — SixKeyToolbox</PageTitle>
+
+<WinDialog Title="Rating">
+    <div class="rating-toolbar">
+        <label>
+            Top N
+            <input type="number" min="1" max="500" @bind="this.TopN" @bind:event="oninput" />
+        </label>
+        <button @onclick="() => this.Reload(true)" disabled="@this.IsUpdating">Reload</button>
+    </div>
+
+    @if (this.IsUpdating)
+    {
+        <p class="muted">Calculating ratings… this may take a moment.</p>
+    }
+    else if (this.LoadError is not null)
+    {
+        <p class="muted">@this.LoadError</p>
+    }
+    else if (this.Plays.Count == 0)
+    {
+        <p class="muted">No plays loaded.</p>
+    }
+    else
+    {
+        <ul class="rating-list">
+            @foreach (var play in this.TopPlays)
+            {
+                <li class="rating-card">
+                    <div class="rating-main">
+                        <span class="rating-num">@($"{play.Rating:F2}")</span>
+                        <span class="rating-cc">[@($"{play.ChartConstant:F1}")]</span>
+                    </div>
+                    <div class="rating-meta">
+                        <span class="title">@play.Title</span>
+                        <span class="artist">@play.Artist</span>
+                    </div>
+                    <div class="rating-sub">
+                        <span>acc @($"{play.Accuracy:F2}%")</span>
+                        <span class="mods">@play.ModsText</span>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</WinDialog>
+
+<style>
+    .rating-toolbar { display: flex; gap: 1rem; align-items: end; margin-bottom: 1rem; }
+    .rating-toolbar label { display: flex; flex-direction: column; }
+    .rating-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }
+    .rating-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: .75rem 1rem; border: 1px solid var(--dialog-border, #444); }
+    .rating-main { display: flex; flex-direction: column; }
+    .rating-num { font-size: 1.5rem; font-weight: 600; }
+    .rating-cc { opacity: .7; font-size: .9rem; }
+    .rating-meta { display: flex; flex-direction: column; }
+    .rating-meta .artist { opacity: .6; font-size: .85rem; }
+    .rating-sub { display: flex; flex-direction: column; align-items: end; gap: .25rem; font-size: .85rem; }
+    .mods { opacity: .7; }
+    .muted { opacity: .6; }
+</style>

@@ -1,0 +1,61 @@
+@page "/config"
+
+<PageTitle>Config — SixKeyToolbox</PageTitle>
+
+<WinDialog Title="Global Configuration">
+    <section>
+        <h3>osu! base folder</h3>
+        <p class="muted">The root of your osu! install (contains <c>osu!.db</c>, <c>scores.db</c>, and the <c>Songs</c> folder).</p>
+        <label class="fullwidth">
+            <input type="text" @bind="this.OsuBaseFolder" />
+        </label>
+        <button @onclick="this.SaveSettings">Save settings</button>
+        @if (this.SettingsMessage is not null)
+        {
+            <span class="@this.SettingsClass">@this.SettingsMessage</span>
+        }
+    </section>
+
+    <section>
+        <h3>Dan presets</h3>
+        <p class="muted">Saved dan definitions used by the Dan Calculating page.</p>
+        @if (this.DanPresets.Count == 0)
+        {
+            <p class="muted">No presets saved yet.</p>
+        }
+        else
+        {
+            <ul class="preset-list">
+                @for (int i = 0; i < this.DanPresets.Count; i++)
+                {
+                    int idx = i;
+                    <li>
+                        <input type="text" @bind="this.DanPresets[idx].Name" />
+                        <span class="muted">@string.Join(" / ", this.DanPresets[idx].Sections.Select(s => s.Name))</span>
+                        <button @onclick="() => this.RemovePreset(idx)">Remove</button>
+                    </li>
+                }
+            </ul>
+        }
+        <button @onclick="this.AddPreset">Add empty preset</button>
+        <button @onclick="this.SavePresets">Save presets</button>
+        @if (this.PresetsMessage is not null)
+        {
+            <span class="@this.PresetsClass">@this.PresetsMessage</span>
+        }
+    </section>
+</WinDialog>
+
+<style>
+    section { margin-bottom: 1.5rem; }
+    section h3 { margin: 0 0 .75rem; }
+    .fullwidth { display: block; margin-bottom: .75rem; }
+    .fullwidth input { width: 100%; max-width: 40rem; }
+    .preset-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }
+    .preset-list li { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+    .preset-list .muted { flex: 1; min-width: 12rem; }
+    button { margin-right: .5rem; }
+    .muted { opacity: .6; }
+    .ok { color: #6fcf6f; }
+    .err { color: #e06666; }
+</style>

@@ -1,0 +1,70 @@
+@page "/dan-split"
+
+<PageTitle>Dan Split — SixKeyToolbox</PageTitle>
+
+<WinDialog Title="Dan Splitting">
+    <div class="row">
+        <button @onclick="this.PickFolder">Pick folder</button>
+        @if (this.BeatmapTitle is not null)
+        {
+            <span class="muted">@this.BeatmapTitle</span>
+        }
+    </div>
+
+    @if (this.LoadError is not null)
+    {
+        <p class="err">@this.LoadError</p>
+    }
+
+    @if (this.HasChart)
+    {
+        <section>
+            <h3>Density &amp; split points</h3>
+            <DensitySplitView @ref="this.densitySplitView" Beatmap="@this.Beatmap" AudioSrc="@this.AudioSrc"
+                              SplitPointChanged="e => this.OnSplitMsChanged(e)" />
+        </section>
+
+        <section>
+            <h3>Dan level names</h3>
+            <div class="grid-4">
+                @for (int i = 0; i < 4; i++)
+                {
+                    int idx = i;
+                    <label>@(i + 1)
+                        <input type="text" @bind="this.SongNames[idx]" />
+                    </label>
+                }
+            </div>
+            <button @onclick="this.SaveDan">Save dan definition</button>
+            @if (this.SaveMessage is not null)
+            {
+                <span class="@this.SaveClass">@this.SaveMessage</span>
+            }
+        </section>
+
+        <section>
+            <h3>Generate charts</h3>
+            <p class="muted">Writes one <c>.osu</c> per song to the same folder, keeping only the hit objects in each segment's time range.</p>
+            <button @onclick="this.GenerateCharts">Generate 4 charts</button>
+            @if (this.GenMessage is not null)
+            {
+                <span class="@this.GenClass">@this.GenMessage</span>
+            }
+        </section>
+    }
+    else
+    {
+        <p class="muted">Pick a folder containing a 6K .osu and its audio file.</p>
+    }
+</WinDialog>
+
+<style>
+    .row { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+    section { margin-bottom: 1.5rem; }
+    section h3 { margin: 0 0 .75rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: .5rem; max-width: 32rem; margin-bottom: 1rem; }
+    .grid-4 label { display: flex; flex-direction: column; }
+    .muted { opacity: .6; }
+    .err { color: #e06666; }
+    .ok { color: #6fcf6f; }
+</style>

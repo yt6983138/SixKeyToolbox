@@ -1,0 +1,105 @@
+@page "/difficulty"
+
+<PageTitle>Difficulty Estimator — SixKeyToolbox</PageTitle>
+
+<WinDialog Title="Difficulty Estimator">
+    <section>
+        <h3>Beatmap</h3>
+        <label>
+            .osu file
+            <InputFile OnChange="this.OnFileSelected" accept=".osu" />
+        </label>
+        @if (this.ChartConstant is not null)
+        {
+            <p>Chart constant: <strong class="big">[@($"{this.ChartConstant.Value:F1}")]</strong></p>
+        }
+        else if (this.FileError is not null)
+        {
+            <p class="muted">@this.FileError</p>
+        }
+        else
+        {
+            <p class="muted">Load a .osu to compute its chart constant.</p>
+        }
+    </section>
+
+    <section>
+        <h3>Mod</h3>
+        <div class="mod-row">
+            @foreach (var opt in Enum.GetValues<SelectableMods>())
+            {
+                <label>
+                    <input type="radio" name="mod" value="@opt"
+                           checked="@(this.SelectedMod == opt)"
+                           @onchange="e => this.OnModChanged(e.Value?.ToString())" />
+                    @opt.ToString().Replace('_', '/')
+                </label>
+            }
+        </div>
+    </section>
+
+    <section>
+        <h3>Rating</h3>
+        <div class="mode-row">
+            <label>
+                <input type="radio" name="ratingmode" value="accuracy"
+                       checked="@(this.RatingMode == "accuracy")"
+                       @onchange="@(e => this.RatingMode = e.Value?.ToString() ?? "accuracy")" />
+                By accuracy
+            </label>
+            <label>
+                <input type="radio" name="ratingmode" value="judgements"
+                       checked="@(this.RatingMode == "judgements")"
+                       @onchange="@(e => this.RatingMode = e.Value?.ToString() ?? "judgements")" />
+                By judgement counts
+            </label>
+        </div>
+
+        @if (this.RatingMode == "accuracy")
+        {
+            <label>
+                Accuracy (%)
+                <input type="number" step="0.01" min="0" max="100"
+                       @bind="this.AccuracyInput" @bind:event="oninput" />
+            </label>
+        }
+        else
+        {
+            <div class="grid-2">
+                <label>300G<input type="number" min="0" @bind="this.Judgement300G" @bind:event="oninput" /></label>
+                <label>300 <input type="number" min="0" @bind="this.Judgement300" @bind:event="oninput" /></label>
+                <label>200 <input type="number" min="0" @bind="this.Judgement200" @bind:event="oninput" /></label>
+                <label>100 <input type="number" min="0" @bind="this.Judgement100" @bind:event="oninput" /></label>
+                <label>50  <input type="number" min="0" @bind="this.Judgement50"  @bind:event="oninput" /></label>
+                <label>Miss<input type="number" min="0" @bind="this.JudgementMiss" @bind:event="oninput" /></label>
+            </div>
+            <label class="checkbox">
+                <input type="checkbox" @bind="this.IsScoreV2" />
+                Is score v2 (affects displayed accuracy only)
+            </label>
+            <p class="muted">Displayed accuracy: @($"{this.DisplayedAccuracy:F2}%")</p>
+        }
+
+        @if (this.ChartConstant is not null)
+        {
+            <p>Rating: <strong class="big">@($"{this.EstimatedRating:F2}")</strong></p>
+        }
+        else
+        {
+            <p class="muted">Load a beatmap to see the rating.</p>
+        }
+    </section>
+</WinDialog>
+
+<style>
+    section { margin-bottom: 1.5rem; }
+    section h3 { margin: 0 0 .75rem; }
+    .big { font-size: 1.4rem; }
+    .muted { opacity: .6; }
+    label { display: inline-flex; flex-direction: column; margin-right: 1rem; margin-bottom: .5rem; }
+    .checkbox { flex-direction: row; align-items: center; gap: .5rem; }
+    .mod-row, .mode-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .mod-row label, .mode-row label { flex-direction: row; align-items: center; gap: .4rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; max-width: 30rem; }
+    input[type="number"] { width: 5rem; }
+</style>

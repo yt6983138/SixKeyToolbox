@@ -1,4 +1,6 @@
-﻿using StarRatingRebirth;
+﻿using Coosu.Beatmap.Sections.HitObject;
+using Coosu.Database.DataTypes;
+using StarRatingRebirth;
 using System.Buffers;
 using System.Text;
 
@@ -6,6 +8,65 @@ namespace SixKeyToolbox.OsuHelpers;
 
 public static class OsuExtensions
 {
+	extension(Mods self)
+	{
+		public bool? ToRatingFlag()
+		{
+			if (self.HasFlag(Mods.DoubleTime) || self.HasFlag(Mods.Nightcore)) return true;
+			if (self.HasFlag(Mods.HalfTime)) return false;
+			return null;
+		}
+		public bool HasScoreV2 => self.HasFlag(Mods.ScoreV2);
+	}
+	extension(OsuParsers.Enums.Mods self)
+	{
+		public bool? ToRatingFlag() => ((Mods)(int)self).ToRatingFlag();
+		public bool HasScoreV2 => self.HasFlag(OsuParsers.Enums.Mods.ScoreV2);
+	}
+	extension(Score self)
+	{
+		public double Calculate6KRating(double chartConstant)
+		{
+			return RatingCalculator.Calculate6KRating(chartConstant, self.RatingAccuracy);
+		}
+		public double Accuracy =>
+			RatingCalculator.CalculateAccuracy(
+				self.CountGeki, self.Count300, self.CountKatu,
+				self.Count100, self.Count50, self.CountMiss, self.Mods.HasFlag(Mods.ScoreV2));
+
+		public double RatingAccuracy =>
+			RatingCalculator.CalculateRatingAccuracy(
+				self.CountGeki, self.Count300, self.CountKatu,
+				self.Count100, self.Count50, self.CountMiss);
+
+	}
+	extension(Beatmap self)
+	{
+		public string? TryGetPath(string osuBaseFolder)
+		{
+			if (osuBaseFolder is null) return null;
+			string path = Path.Combine(osuBaseFolder, "Songs", self.FolderName, self.FileName);
+			return File.Exists(path) ? path : null;
+		}
+	}
+	extension(RawHitObject self)
+	{
+		public int GetColumn(int totalColumns)
+		{
+			return Math.Clamp((int)Math.Floor(self.X * totalColumns / 512.0), 0, totalColumns - 1);
+		}
+	}
+	extension(IEnumerable<RawHitObject> self)
+	{
+		public int GetNoteCount(double startMs, double endMs)
+		{
+			return self.Count(h => !h.RawType.HasFlag(RawObjectType.Hold) && h.Offset >= startMs && h.Offset <= endMs);
+		}
+		public int GetLNCount(double startMs, double endMs)
+		{
+			return self.Count(h => h.RawType.HasFlag(RawObjectType.Hold) && h.Offset >= startMs && h.Offset <= endMs);
+		}
+	}
 	extension(ManiaData self)
 	{
 		public static async Task<ManiaData> FromStreamAsync(Stream stream, int length, Encoding? encoding = null)
@@ -24,7 +85,6 @@ public static class OsuExtensions
 				ArrayPool<byte>.Shared.Return(buffer);
 			}
 		}
-
 		/// <summary>
 		/// 
 		/// </summary>

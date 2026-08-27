@@ -1,0 +1,141 @@
+@page "/dan-calc"
+
+<PageTitle>Dan Calc — SixKeyToolbox</PageTitle>
+
+<WinDialog Title="Dan Calculating">
+    <p class="muted">
+        Optional: upload a dan replay (<c>.osr</c>). If your local database has the beatmap (matched by the replay's hash), the density graph and split sliders appear; otherwise type the cumulative accuracies at the transitions manually. Without a replay, type 4 cumulative accuracies (after songs 1, 2, 3, and the total) and note counts.
+    </p>
+
+    <section>
+        <h3>Replay (optional)</h3>
+        @if (this.TopRecentReplays.Count > 0)
+        {
+            <label>
+                Recent replays
+                <select @onchange="this.OnRecentReplayPicked">
+                    <option value="-1">— pick a recent replay —</option>
+                    @for (int i = 0; i < this.TopRecentReplays.Count; i++)
+                    {
+                        RecentReplay r = this.TopRecentReplays[i];
+                        <option value="@i">@($"{r.BeatmapTitle} — {r.Player} ({r.Timestamp:yyyy-MM-dd HH:mm})")</option>
+                    }
+                </select>
+            </label>
+        }
+        <InputFile OnChange="this.OnReplaySelected" accept=".osr" />
+        @if (this.ReplayError is not null)
+        {
+            <p class="err">@this.ReplayError</p>
+        }
+        @if (this.HasReplay)
+        {
+            <p class="muted">
+                @this.Replay!.PlayerName · mods @this.Replay!.Mods ·
+                total rating acc @($"{this.ReplayTotalRatingAcc:F2}%") @this.ScoreV2Text
+            </p>
+        }
+    </section>
+
+    @if (this.HasReplay && !this.HasBeatmap)
+    {
+        <section>
+            <h3>Beatmap not found</h3>
+            <p class="muted">Could not resolve the beatmap from the replay hash in your local database. Optionally upload the <c>.osu</c> to enable the density graph and split sliders:</p>
+            <InputFile OnChange="this.OnBeatmapSelected" accept=".osu" />
+            @if (this.BeatmapError is not null)
+            {
+                <p class="err">@this.BeatmapError</p>
+            }
+            @if (this.HasBeatmap)
+            {
+                <p class="muted">@this.BeatmapTitle</p>
+            }
+        </section>
+    }
+
+    @if (this.ShowGraph)
+    {
+        <section>
+            <h3>Density &amp; split points</h3>
+            <DensitySplitView Beatmap="@this.Beatmap"
+                              SplitPointChanged="e => this.OnSplitPointChanged(e)" />
+        </section>
+    }
+
+    <section>
+        <h3>Note counts &amp; preset</h3>
+        <label>
+            Preset
+            <select @onchange="this.OnPresetChanged">
+                <option value="">— custom —</option>
+                @foreach (var d in this.DanPresets)
+                {
+                    <option value="@d.Name">@d.Name (@string.Join("/", d.Sections.Select(x => x.GetTotalCount(false))))</option>
+                }
+            </select>
+        </label>
+        <div class="grid-4">
+            @for (int i = 0; i < this.NoteCounts.Count; i++)
+            {
+                int bindIndex = i; // this line is essential, it seems like if i just use i instead, it would capture at wrong time causing index out of range
+                <label>@(this.SongLabels.Count > i ? this.SongLabels[i] : $"Song {i + 1}")
+                    <input type="number" min="0" @bind="this.NoteCounts[bindIndex]" />
+                </label>
+            }
+        </div>
+    </section>
+
+    <section>
+        <h3>Cumulative accuracy at transitions</h3>
+        <p class="muted">@this.TransitionHelpText</p>
+        <div class="grid-4">
+            @for (int i = 0; i < this.ManualTransitionCount; i++)
+            {
+                int idx = i;
+                <label>@(idx < 3 ? $"After song {idx + 1}" : "Total")
+                    @if (idx == 3 && this.HasReplay)
+                    {
+                        <input type="number" step="0.01" min="0" max="100"
+                               value="@($"{this.ReplayTotalRatingAcc:F2}")" disabled />
+                    }
+                    else
+                    {
+                        <input type="number" step="0.01" min="0" max="100"
+                               @bind="this.CumulativeAcc[idx]" />
+                    }
+                </label>
+            }
+        </div>
+        <button @onclick="this.Calculate">Calculate</button>
+    </section>
+
+    @if (this.Results.Count > 0)
+    {
+        <section>
+            <h3>Per-song real accuracy</h3>
+            <ul class="results">
+                @for (int i = 0; i < this.Results.Count; i++)
+                {
+                    <li>
+                        <span class="song">@(this.SongLabels.Count > i ? this.SongLabels[i] : $"Song {i + 1}")</span>
+                        <span class="acc">@($"{this.Results[i]:F2}%")</span>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+</WinDialog>
+
+<style>
+    section { margin-bottom: 1.5rem; }
+    section h3 { margin: 0 0 .75rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: .5rem; max-width: 32rem; margin: .75rem 0; }
+    .grid-4 label { display: flex; flex-direction: column; }
+    input[type="number"] { width: 6rem; }
+    .muted { opacity: .6; }
+    .err { color: #e06666; }
+    .results { list-style: none; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+    .results li { display: flex; justify-content: space-between; max-width: 20rem; padding: .5rem .75rem; border: 1px solid var(--dialog-border, #444); }
+    .results .acc { font-weight: 600; }
+</style>

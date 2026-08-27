@@ -1,4 +1,5 @@
 using SixKeyToolbox.Components;
+using SixKeyToolbox.Services;
 
 namespace SixKeyToolbox;
 
@@ -10,7 +11,8 @@ public class Program
 
 		// Add services to the container.
 		builder.Services.AddRazorComponents()
-			.AddInteractiveServerComponents();
+			.AddInteractiveServerComponents(o => o.DetailedErrors = true);
+		builder.Services.AddSingleton<OsuLocalService>();
 
 		WebApplication app = builder.Build();
 

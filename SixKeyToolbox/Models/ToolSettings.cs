@@ -1,0 +1,8 @@
+namespace SixKeyToolbox.Models;
+
+public class ToolSettings
+{
+	public static ToolSettings Default => new();
+
+	public string OsuBaseFolder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "osu!");
+}

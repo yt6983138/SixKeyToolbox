@@ -1,0 +1,63 @@
+@if (this.HasData)
+{
+    <div class="dsv-wrap">
+        <svg class="dsv-density" viewBox="0 0 1000 120" preserveAspectRatio="none">
+            @foreach (var bar in this.DensityBars)
+            {
+                <rect x="@($"{bar.X:F2}")" y="@($"{bar.Y:F2}")"
+                      width="@($"{bar.W:F2}")" height="@($"{bar.H:F2}")" />
+            }
+            @foreach (var x in this._sections.Skip(1).Select(s => this.MsToX(s.StartMs)))
+            {
+                <line x1="@($"{x:F2}")" y1="0" x2="@($"{x:F2}")" y2="120"
+                      class="dsv-splitline" />
+            }
+            @if (!string.IsNullOrEmpty(this.AudioSrc) && this.AudioDuration > 0)
+            {
+                <line x1="@($"{this.MsToX(this.AudioPos * 1000.0):F2}")" y1="0"
+                      x2="@($"{this.MsToX(this.AudioPos * 1000.0):F2}")" y2="120"
+                      class="dsv-playline" />
+            }
+        </svg>
+        @if (!string.IsNullOrEmpty(this.AudioSrc))
+        {
+            <audio id="@this.AudioId" src="@this.AudioSrc"
+                   @onloadedmetadata="this.OnAudioMeta" />
+            <div class="dsv-audio-controls">
+                <button @onclick="this.TogglePlay">@(this.IsPlaying ? "Pause" : "Play")</button>
+                <input type="range" min="0" max="@this.AudioDuration" step="0.01"
+                       value="@this.AudioPos"
+                       @oninput="this.OnAudioScrub"
+                       class="dsv-audio-slider" />
+                <span class="muted">@($"{this.AudioPos:F1}s / {this.AudioDuration:F1}s")</span>
+            </div>
+        }
+        <div class="dsv-sliders">
+            @for (int i = 1; i < this._sections.Count; i++)
+            {
+                SplitSection section = this._sections[i]; // this line is essential too, fuck the capturing
+                <label>
+                    Split @(i)
+                    <input type="range" min="@this.MinMs" max="@this.MaxMs"
+                           value="@($"{section.StartMs:F0}")"
+                           step="100"
+                           @oninput="e => this.OnSliderInput(section, e)" />
+                    <span>@($"{section.StartMs:F0} ms")</span>
+                </label>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .dsv-wrap { display: flex; flex-direction: column; gap: .5rem; }
+    .dsv-density { width: 100%; height: 120px; background: rgba(255,255,255,.05); border: 1px solid var(--dialog-border, #444); }
+    .dsv-density rect { fill: #5b8; }
+    .dsv-density .dsv-splitline { stroke: #e84; stroke-width: 1.5px; }
+    .dsv-density .dsv-playline { stroke: #5ad; stroke-width: 2px; }
+    .dsv-audio-controls { display: flex; align-items: center; gap: 1rem; margin-top: .5rem; }
+    .dsv-audio-slider { flex: 1; max-width: 500px; }
+    .dsv-sliders { display: flex; flex-direction: column; gap: .75rem; margin-top: 1rem; }
+    .dsv-sliders label { display: flex; align-items: center; gap: .75rem; }
+    .dsv-sliders input { display: flex; width: 50%; max-width: 500px; }
+</style>
