@@ -84,7 +84,7 @@ public partial class DifficultyEstimator : ComponentBase
 	{
 		foreach (BeatmapResult result in this.Results)
 		{
-			result.ChartConstant = result.Data.Calculate6KChartConstant(this.CurrentModFlag);
+			result.ChartConstant = result.Data.TryCalculate6KChartConstant(this.CurrentModFlag);
 			result.Rating = this.RatingAccuracy is { } acc
 				? RatingCalculator.Calculate6KRating(result.ChartConstant, acc)
 				: null;
@@ -105,7 +105,7 @@ public partial class DifficultyEstimator : ComponentBase
 					int len = (int)Math.Min(file.Size, 10 * 1024 * 1024);
 					using Stream stream = file.OpenReadStream(len);
 					ManiaData maniaData = await ManiaData.FromStreamAsync(stream, len);
-					double cc = maniaData.Calculate6KChartConstant(this.CurrentModFlag);
+					double cc = maniaData.TryCalculate6KChartConstant(this.CurrentModFlag);
 					double? rating = this.RatingAccuracy is { } acc
 						? RatingCalculator.Calculate6KRating(cc, acc)
 						: null;
