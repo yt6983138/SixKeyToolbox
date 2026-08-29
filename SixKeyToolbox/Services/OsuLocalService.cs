@@ -1,5 +1,6 @@
 using Coosu.Database.DataTypes;
 using Coosu.Database.Serialization;
+using MemoryPack;
 using NativeFileDialogSharp;
 using SixKeyToolbox.Models;
 using SixKeyToolbox.OsuHelpers;
@@ -9,14 +10,17 @@ using System.Text.Json;
 
 namespace SixKeyToolbox.Services;
 
-public class OsuLocalService
+public partial class OsuLocalService
 {
-	private record struct ChartConstantKey(string MD5, bool? Flag);
+	[MemoryPackable]
+	private partial record struct ChartConstantKey(string MD5, bool? Flag);
 
-	private static readonly string _danDefinitionsPath = Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "dan_definitions.json");
-	private static readonly string _config = Path.Combine(
-		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "config.json");
+	private static readonly string _dataPathBase = Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), nameof(SixKeyToolbox));
+
+	private static readonly string _danDefinitionsPath = Path.Combine(_dataPathBase, "dan_definitions.json");
+	private static readonly string _config = Path.Combine(_dataPathBase, "config.json");
+	private static readonly string _beatmapConstantCachePath = Path.Combine(_dataPathBase, "beatmap_constant_cache.bin");
 
 	private static readonly JsonSerializerOptions _jsonOptions = new()
 	{
@@ -24,18 +28,22 @@ public class OsuLocalService
 	};
 
 	private readonly ILogger<OsuLocalService> _logger;
-	private readonly ConcurrentDictionary<ChartConstantKey, double> _beatmapChartConstantCache = new();
+	private readonly SemaphoreSlim _updateOnceLock = new(1, 1);
 
 	private ToolSettings? _settings;
 
 	private ScoresDb? _scoresDb;
 	private OsuDb? _osuDb;
+	private Task<ConcurrentBag<RatingPlay>>? _onGoingRatingUpdateTask;
+
+	private ConcurrentDictionary<ChartConstantKey, double> _beatmapChartConstantCache = new();
 
 	public ConcurrentBag<RatingPlay> RatingCache { get; private set; } = [];
 
 	public OsuLocalService(ILogger<OsuLocalService> logger)
 	{
 		this._logger = logger;
+		Directory.CreateDirectory(_dataPathBase);
 	}
 
 	private async ValueTask<ScoresDb> GetScoresDbAsync()
@@ -55,6 +63,13 @@ public class OsuLocalService
 		// bruh no async
 		this._osuDb = OsuDb.ReadFromFile(Path.Combine(settings.OsuBaseFolder, "osu!.db"));
 		this._scoresDb = ScoresDb.ReadFromFile(Path.Combine(settings.OsuBaseFolder, "scores.db"));
+
+		if (File.Exists(_beatmapConstantCachePath))
+		{
+			// god, wish the .net 12 new type inference comes soon
+			this._beatmapChartConstantCache = MemoryPackSerializer.Deserialize<ConcurrentDictionary<ChartConstantKey, double>>(
+				await File.ReadAllBytesAsync(_beatmapConstantCachePath)) ?? new();
+		}
 	}
 
 	public async ValueTask<ToolSettings> GetSettingsAsync()
@@ -77,14 +92,51 @@ public class OsuLocalService
 	{
 		await File.WriteAllTextAsync(_config, JsonSerializer.Serialize(settings, _jsonOptions));
 	}
-	public async Task<ConcurrentBag<RatingPlay>> UpdateRatingPlaysAsync()
+	public Task<ConcurrentBag<RatingPlay>> TryUpdatingPlaysOnceAsync()
 	{
+		this._updateOnceLock.Wait();
+		Task<ConcurrentBag<RatingPlay>>? task = Volatile.Read(ref this._onGoingRatingUpdateTask);
+		if (task is not null)
+		{
+			this._logger.LogInformation("Rating update already in progress, skipping");
+			this._updateOnceLock.Release();
+			return task;
+		}
+		Task<ConcurrentBag<RatingPlay>> newTask = this.UpdateRatingPlaysAsync();
+		this._updateOnceLock.Release();
+		return newTask;
+	}
+	public Task<ConcurrentBag<RatingPlay>> UpdateRatingPlaysAsync()
+	{
+		Task<ConcurrentBag<RatingPlay>> task = this.UpdateRatingPlaysAsyncCore();
+
+		Volatile.Write(ref this._onGoingRatingUpdateTask, task);
+
+		return Core();
+
+		async Task<ConcurrentBag<RatingPlay>> Core()
+		{
+			try
+			{
+				return await task;
+			}
+			finally
+			{
+				// only replaces it if the current task is the same as the one we started with,
+				// if its not the same, it means another update has started and we should not null it out
+				_ = Interlocked.CompareExchange(ref this._onGoingRatingUpdateTask, null, task);
+			}
+		}
+	}
+	private async Task<ConcurrentBag<RatingPlay>> UpdateRatingPlaysAsyncCore()
+	{
+		await Task.Yield();
 		ToolSettings settings = await this.GetSettingsAsync();
 		ConcurrentBag<RatingPlay> ratingPlays = [];
 		OsuDb osuDb = await this.GetOsuDbAsync();
 		List<ScoreBeatmap> beatmaps = (await this.GetScoresDbAsync()).Beatmaps;
 		// i know this is a bruteforce, but lets optimize later
-		Parallel.ForEach(beatmaps, new() { MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 3, 1) }, (item) =>
+		Parallel.ForEach(beatmaps, new() { MaxDegreeOfParallelism = 4 }, (item) =>
 		{
 			Beatmap? beatmap = osuDb.Beatmaps.FirstOrDefault(b => b.Md5Hash == item.Hash);
 			if (beatmap is null)
@@ -134,6 +186,9 @@ public class OsuLocalService
 			}
 		});
 		this.RatingCache = ratingPlays;
+
+		await File.WriteAllBytesAsync(_beatmapConstantCachePath, MemoryPackSerializer.Serialize(this._beatmapChartConstantCache));
+
 		return ratingPlays;
 	}
 	public async Task<IReadOnlyList<RecentReplay>> GetRecentReplaysAsync()

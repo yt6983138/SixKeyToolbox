@@ -6,13 +6,20 @@ using SixKeyToolbox.Services;
 
 namespace SixKeyToolbox.Components.Pages;
 
-public partial class LnConvert : ComponentBase
+public enum ConversionMode
+{
+	InverseLN,
+	SevenKToSixK
+}
+
+public partial class Convert : ComponentBase
 {
 	public static IReadOnlyList<string> GapPresets { get; } = ["1/16", "1/8", "1/4", "1/2", "1/3", "1/6"];
 
 	[Inject]
 	internal OsuLocalService LocalService { get; set; } = null!;
 
+	public ConversionMode Mode { get; set; } = ConversionMode.InverseLN;
 	public string GapPreset { get; set; } = "1/8";
 	public double OverallDifficulty { get; set; } = 6;
 
@@ -51,14 +58,30 @@ public partial class LnConvert : ComponentBase
 			int ok = 0;
 			foreach (string path in osuFiles)
 			{
-				string outPath = this.GetInversePath(path);
+				string outPath = this.Mode == ConversionMode.InverseLN
+					? this.GetInversePath(path)
+					: this.Get7to6Path(path);
 				string name = Path.GetFileName(outPath);
-				await Task.Run(() => this.ConvertOne(path, outPath));
+
+				if (this.Mode == ConversionMode.InverseLN)
+				{
+					await Task.Run(() => this.ConvertOneInverse(path, outPath));
+				}
+				else
+				{
+					OsuFile osu = OsuFile.ReadFromFile(path);
+					if (osu.Difficulty!.CircleSize != 7) continue;
+					await Task.Run(() => this.Convert7KTo6K(osu, outPath));
+				}
+
 				this.ConvertedFiles.Add(name);
 				ok++;
 			}
 
-			this.SetResult(true, $"Converted {ok} beatmap(s) to inverse.");
+			string resultMsg = this.Mode == ConversionMode.InverseLN
+				? $"Converted {ok} beatmap(s) to inverse."
+				: $"Converted {ok} beatmap(s) from 7K to 6K.";
+			this.SetResult(true, resultMsg);
 		}
 		catch (Exception ex)
 		{
@@ -66,13 +89,13 @@ public partial class LnConvert : ComponentBase
 		}
 	}
 
-	private void ConvertOne(string inPath, string outPath)
+	private void ConvertOneInverse(string inPath, string outPath)
 	{
 		OsuFile osu = OsuFile.ReadFromFile(inPath);
 
-		osu.Difficulty?.OverallDifficulty = (float)this.OverallDifficulty;
-		osu.Metadata?.Title += "@Inverse";
-		osu.Metadata?.TitleUnicode += "@Inverse";
+		osu.Difficulty!.OverallDifficulty = (float)this.OverallDifficulty;
+		osu.Metadata!.Title += "@Inverse";
+		osu.Metadata!.TitleUnicode += "@Inverse";
 		osu.Metadata?.TagList?.Add("inverse");
 
 		List<RawHitObject> hits = osu.HitObjects?.HitObjectList ?? [];
@@ -135,6 +158,31 @@ public partial class LnConvert : ComponentBase
 		osu.Save(outPath);
 	}
 
+	private void Convert7KTo6K(OsuFile osu, string outPath)
+	{
+		osu.Difficulty!.CircleSize = 6;
+		osu.Metadata!.Title += "@7to6DelSpace";
+		osu.Metadata!.TitleUnicode += "@7to6DelSpace";
+		osu.Metadata?.TagList?.Add("7to6");
+		osu.Metadata?.TagList?.Add("delspace");
+
+		List<RawHitObject> hits = osu.HitObjects?.HitObjectList ?? [];
+		List<RawHitObject> kept = [];
+
+		foreach (RawHitObject h in hits)
+		{
+			int col = h.GetColumn(7);
+			if (col == 3) continue;
+
+			int newCol = col < 3 ? col : col - 1;
+			h.X = (float)Math.Round(((newCol * 512.0) + 256.0) / 6.0);
+			kept.Add(h);
+		}
+
+		osu.HitObjects!.HitObjectList = kept;
+		osu.Save(outPath);
+	}
+
 	private double GetGapRatio()
 	{
 		return this.GapPreset switch
@@ -143,8 +191,8 @@ public partial class LnConvert : ComponentBase
 			"1/8" => 1.0 / 4.0,
 			"1/4" => 1.0 / 2.0,
 			"1/2" => 1,
-			"1/3" => 2 / 3,
-			"1/6" => 1 / 3,
+			"1/3" => 2 / 3.0,
+			"1/6" => 1 / 3.0,
 			_ => 1,
 		};
 	}
@@ -169,6 +217,15 @@ public partial class LnConvert : ComponentBase
 		string fn = Path.GetFileNameWithoutExtension(path);
 		if (!fn.EndsWith("@Inverse", StringComparison.Ordinal))
 			fn += "@Inverse";
+		return Path.Combine(dir, fn + ".osu");
+	}
+
+	private string Get7to6Path(string path)
+	{
+		string dir = Path.GetDirectoryName(path)!;
+		string fn = Path.GetFileNameWithoutExtension(path);
+		if (!fn.EndsWith("@7to6DelSpace", StringComparison.Ordinal))
+			fn += "@7to6DelSpace";
 		return Path.Combine(dir, fn + ".osu");
 	}
 

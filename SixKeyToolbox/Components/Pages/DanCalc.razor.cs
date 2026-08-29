@@ -21,10 +21,12 @@ public partial class DanCalc : ComponentBase
 	[Inject]
 	internal OsuLocalService LocalService { get; set; } = null!;
 
+	private ToolSettings _settings = ToolSettings.Default;
 	public Replay? Replay { get; set; }
 	public bool HasReplay => this.Replay is not null;
 	public string? ReplayError { get; set; }
-	public string ScoreV2Text => this.HasReplay && this.Replay!.Mods.HasFlag(OsuParsers.Enums.Mods.ScoreV2) ? " (scoreV2)" : "";
+	public string ScoreV2Text => this.HasReplay && this.Replay!.Mods.HasScoreV2 ? " (scoreV2)" : "";
+	public bool IsScoreV2 { get => this.HasReplay ? this.Replay!.Mods.HasScoreV2 : field; set; }
 
 	public OsuFile? Beatmap { get; set; }
 	public bool HasBeatmap => this.Beatmap is not null;
@@ -32,7 +34,7 @@ public partial class DanCalc : ComponentBase
 	public string? BeatmapError { get; set; }
 
 	public List<int> NoteCounts { get; set; } = [0, 0, 0, 0];
-	public List<string> SongLabels { get; set; } = ["Jack", "Tech", "Stamina", "Speed"];
+	public List<string> SongLabels { get; set; } = OsuExtensions.RegularDanSections.ToList();
 	public List<double> CumulativeAcc { get; set; } = [0, 0, 0, 0];
 	public List<double> Results { get; set; } = [];
 
@@ -59,11 +61,12 @@ public partial class DanCalc : ComponentBase
 		_ => "Type the cumulative accuracy at the end of each song, including the total (song 4).",
 	};
 
-	public double ReplayTotalRatingAcc =>
-		this.Replay is not null ? this.Replay.RatingAccuracy : 0;
+	public double ReplayTotalAcc =>
+		this.Replay is not null ? this.Replay.Accuracy : 0;
 
 	protected override async Task OnInitializedAsync()
 	{
+		this._settings = await this.LocalService.GetSettingsAsync();
 		this.DanPresets = await this.LocalService.GetDanDefinitionsAsync();
 		this.RecentReplays = await this.LocalService.GetRecentReplaysAsync();
 	}
@@ -96,7 +99,8 @@ public partial class DanCalc : ComponentBase
 				CountMiss = (ushort)recent.CountMiss,
 			};
 
-			this.CumulativeAcc[3] = this.ReplayTotalRatingAcc;
+			this.IsScoreV2 = this.Replay.Mods.HasFlag(OsuParsers.Enums.Mods.ScoreV2);
+			this.CumulativeAcc[3] = this.ReplayTotalAcc;
 			await this.TryLoadBeatmapFromReplay();
 			this.TryDeriveTransitionAccuraciesFromReplay();
 		}
@@ -117,7 +121,8 @@ public partial class DanCalc : ComponentBase
 			using Stream stream = file.OpenReadStream(len);
 			this.Replay = await ReplayDecoder.DecodeAsync(stream);
 
-			this.CumulativeAcc[3] = this.ReplayTotalRatingAcc;
+			this.IsScoreV2 = this.Replay.Mods.HasFlag(OsuParsers.Enums.Mods.ScoreV2);
+			this.CumulativeAcc[3] = this.ReplayTotalAcc;
 			await this.TryLoadBeatmapFromReplay();
 			this.TryDeriveTransitionAccuraciesFromReplay();
 		}
@@ -148,6 +153,15 @@ public partial class DanCalc : ComponentBase
 		}
 	}
 
+	private void UseLNNames()
+	{
+		this.SongLabels = OsuExtensions.LNDanSections.ToList();
+	}
+	private void UseRegularNames()
+	{
+		this.SongLabels = OsuExtensions.RegularDanSections.ToList();
+	}
+
 	private async Task TryLoadBeatmapFromReplay()
 	{
 		if (this.Replay is null) return;
@@ -163,15 +177,19 @@ public partial class DanCalc : ComponentBase
 
 	private void TryDeriveTransitionAccuraciesFromReplay()
 	{
-		if (this.Replay is null) return;
-		List<double>? derived = null; // TODO: derive the accuracies from the replay when implemented
+		if (this.Replay is null || this.Beatmap is null) return;
+
+		// TODO: derive the accuracies from the replay when implemented
+		// currently it seems to be too much work just to derive the transition accuracies from the replay, so we will just leave them as null for now
+		List<double>? derived = null;
+
 		if (derived is null || derived.Count < 3) return;
 		for (int i = 0; i < 3; i++)
 			this.CumulativeAcc[i] = derived[i];
 	}
 	public void OnSplitPointChanged(DensitySplitView view)
 	{
-		this.NoteCounts = view.Sections.Select(x => x.GetTotalCount(false)).ToList();
+		this.NoteCounts = view.Sections.Select(x => x.GetTotalCount(this.IsScoreV2)).ToList();
 	}
 
 	public void OnPresetChanged(ChangeEventArgs e)
@@ -182,8 +200,18 @@ public partial class DanCalc : ComponentBase
 		if (def is null) return;
 
 		this.SongLabels = def.Sections.Select(s => s.Name).ToList();
-		this.NoteCounts = def.Sections.Select(s => s.GetTotalCount(false)).ToList();
+		this.NoteCounts = def.Sections.Select(s => s.GetTotalCount(this.IsScoreV2)).ToList();
 	}
+
+	public void OnScoreV2Changed()
+	{
+		if (this.ShowGraph && this.densitySplitView is not null)
+		{
+			this.NoteCounts = this.densitySplitView.Sections.Select(x => x.GetTotalCount(this.IsScoreV2)).ToList();
+		}
+	}
+
+	private DensitySplitView? densitySplitView;
 
 	public void Calculate()
 	{

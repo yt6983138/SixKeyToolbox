@@ -8,7 +8,7 @@
             <a href="/rating" class="@IsActive("/rating")">Rating</a>
             <a href="/dan-split" class="@IsActive("/dan-split")">Dan Split</a>
             <a href="/dan-calc" class="@IsActive("/dan-calc")">Dan Calc</a>
-            <a href="/ln-convert" class="@IsActive("/ln-convert")">LN Convert</a>
+            <a href="/convert" class="@IsActive("/convert")">Convert</a>
             <a href="/config" class="@IsActive("/config")">Config</a>
         </nav>
     </header>
@@ -26,13 +26,12 @@
 @code {
     [Parameter]
     public string? ActivePath { get; set; }
-
-    [CascadingParameter]
-    private HttpContext? HttpContext { get; set; }
+    [Inject]
+    private NavigationManager NavigationManager { get; set; } = null!;
 
     private string IsActive(string href)
     {
-        string path = this.HttpContext?.Request.Path.Value ?? "/";
+        string path = new Uri(NavigationManager.Uri).AbsolutePath ?? "/";
         bool active = href == "/" ? path == "/" : path.StartsWith(href, StringComparison.OrdinalIgnoreCase);
         return active ? "is-active" : "";
     }

@@ -4,7 +4,12 @@
 
 <WinDialog Title="Dan Calculating">
     <p class="muted">
-        Optional: upload a dan replay (<c>.osr</c>). If your local database has the beatmap (matched by the replay's hash), the density graph and split sliders appear; otherwise type the cumulative accuracies at the transitions manually. Without a replay, type 4 cumulative accuracies (after songs 1, 2, 3, and the total) and note counts.
+        Optional: upload a dan replay (<c>.osr</c>). If your local database has the beatmap (matched by the replay's hash), 
+        the density graph and split sliders appear; otherwise type the cumulative accuracies at the transitions manually. 
+        Without a replay, type 4 cumulative accuracies (after songs 1, 2, 3, and the total) and note counts.<br /><br />
+
+        Hint: In theory, if you input a replay and a beatmap, this tool will fill everything up for you. Except it isn't in theory, 
+        because I haven't implemented it yet ¯\_(ツ)_/¯
     </p>
 
     <section>
@@ -31,8 +36,8 @@
         @if (this.HasReplay)
         {
             <p class="muted">
-                @this.Replay!.PlayerName · mods @this.Replay!.Mods ·
-                total rating acc @($"{this.ReplayTotalRatingAcc:F2}%") @this.ScoreV2Text
+                @this.Replay!.PlayerName - mods @this.Replay!.Mods -
+                accuracy @this.ReplayTotalAcc.ToString(this._settings.AccuracyFormat)% @this.ScoreV2Text
             </p>
         }
     </section>
@@ -58,7 +63,7 @@
     {
         <section>
             <h3>Density &amp; split points</h3>
-            <DensitySplitView Beatmap="@this.Beatmap"
+            <DensitySplitView @ref="this.densitySplitView" Beatmap="@this.Beatmap"
                               SplitPointChanged="e => this.OnSplitPointChanged(e)" />
         </section>
     }
@@ -66,15 +71,22 @@
     <section>
         <h3>Note counts &amp; preset</h3>
         <label>
+            <input type="checkbox" @bind="this.IsScoreV2" @bind:after="this.OnScoreV2Changed" />
+            ScoreV2 (LNs count as 2 judgements)
+        </label>
+        <label>
             Preset
             <select @onchange="this.OnPresetChanged">
                 <option value="">— custom —</option>
                 @foreach (var d in this.DanPresets)
                 {
-                    <option value="@d.Name">@d.Name (@string.Join("/", d.Sections.Select(x => x.GetTotalCount(false))))</option>
+                    <option value="@d.Name">@d.Name (@string.Join("/", d.Sections.Select(x => x.GetTotalCount(this.IsScoreV2))))</option>
                 }
             </select>
         </label>
+
+        <button @onclick="this.UseLNNames">Use LN Names</button>
+        <button @onclick="this.UseRegularNames">Use Regular Names</button>
         <div class="grid-4">
             @for (int i = 0; i < this.NoteCounts.Count; i++)
             {
@@ -97,7 +109,7 @@
                     @if (idx == 3 && this.HasReplay)
                     {
                         <input type="number" step="0.01" min="0" max="100"
-                               value="@($"{this.ReplayTotalRatingAcc:F2}")" disabled />
+                               value="@this.ReplayTotalAcc.ToString(this._settings.AccuracyFormat)" disabled />
                     }
                     else
                     {
@@ -119,7 +131,7 @@
                 {
                     <li>
                         <span class="song">@(this.SongLabels.Count > i ? this.SongLabels[i] : $"Song {i + 1}")</span>
-                        <span class="acc">@($"{this.Results[i]:F2}%")</span>
+                        <span class="acc">@this.Results[i].ToString(this._settings.AccuracyFormat)%</span>
                     </li>
                 }
             </ul>

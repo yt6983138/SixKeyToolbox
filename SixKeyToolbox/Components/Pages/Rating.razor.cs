@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using SixKeyToolbox.Models;
 using SixKeyToolbox.Services;
+using System.Collections.Concurrent;
 
 namespace SixKeyToolbox.Components.Pages;
 
@@ -8,7 +9,10 @@ public partial class Rating : ComponentBase
 {
 	[Inject]
 	internal OsuLocalService LocalService { get; set; } = null!;
+	[Inject]
+	internal ILogger<Rating> Logger { get; set; } = null!;
 
+	private ToolSettings _settings = ToolSettings.Default;
 	public List<RatingPlay> Plays { get; set; } = [];
 	public int TopN { get; set; } = 50;
 	public string? LoadError { get; set; }
@@ -22,8 +26,9 @@ public partial class Rating : ComponentBase
 
 	protected override async Task OnInitializedAsync()
 	{
+		this._settings = await this.LocalService.GetSettingsAsync();
+		await this.Reload(false);
 		await base.OnInitializedAsync();
-		_ = this.Reload(false);
 	}
 
 	public async Task Reload(bool isManual)
@@ -37,21 +42,38 @@ public partial class Rating : ComponentBase
 			{
 				this.IsUpdating = true;
 				this.StateHasChanged();
-				_ = Task.Run(this.LocalService.UpdateRatingPlaysAsync)
-					.ContinueWith(async x =>
-					{
-						this.IsUpdating = false;
-						await this.InvokeAsync(this.StateHasChanged);
-						this.Plays = this.LocalService.RatingCache.OrderDescending().ToList();
-					});
+				_ = Task.Run(UpdateCore);
 			}
-			this.Plays = this.LocalService.RatingCache.OrderDescending().ToList();
+			else
+			{
+				this.Plays = this.LocalService.RatingCache.OrderDescending().ToList();
+			}
 		}
 		catch (Exception ex)
 		{
 			this.LoadError = $"Could not load plays: {ex.Message}";
 			this.Plays = [];
 			this.IsUpdating = false;
+		}
+
+		async Task UpdateCore()
+		{
+			try
+			{
+				ConcurrentBag<RatingPlay> result = await this.LocalService.TryUpdatingPlaysOnceAsync();
+				this.Plays = result.OrderDescending().ToList();
+			}
+			catch (Exception ex)
+			{
+				this.Logger.LogError(ex, "Failed to refresh rating");
+				this.LoadError = $"Could not load plays: {ex.Message}";
+				this.Plays = [];
+			}
+			finally
+			{
+				this.IsUpdating = false;
+				await this.InvokeAsync(this.StateHasChanged);
+			}
 		}
 	}
 }

@@ -30,15 +30,15 @@
             {
                 <li class="rating-card">
                     <div class="rating-main">
-                        <span class="rating-num">@($"{play.Rating:F2}")</span>
-                        <span class="rating-cc">[@($"{play.ChartConstant:F1}")]</span>
+                        <span class="rating-num">@play.Rating.ToString(this._settings.AccuracyFormat)</span>
+                        <span class="rating-cc">[@play.ChartConstant.ToString(this._settings.ChartConstantFormat)]</span>
                     </div>
                     <div class="rating-meta">
                         <span class="title">@play.Title</span>
                         <span class="artist">@play.Artist</span>
                     </div>
                     <div class="rating-sub">
-                        <span>acc @($"{play.Accuracy:F2}%")</span>
+                        <span>acc @play.Accuracy.ToString(this._settings.AccuracyFormat)%</span>
                         <span class="mods">@play.ModsText</span>
                     </div>
                 </li>

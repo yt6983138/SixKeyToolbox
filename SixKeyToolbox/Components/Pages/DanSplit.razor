@@ -11,6 +11,21 @@
         }
     </div>
 
+    @if (this.HasMultipleDifficulties)
+    {
+        <div class="row">
+            <label>
+                Select difficulty:
+                <select @onchange="this.OnDifficultySelected" value="@this._selectedOsuPath">
+                    @foreach (var opt in this._osuFileOptions)
+                    {
+                        <option value="@opt.Path">@opt.DisplayName</option>
+                    }
+                </select>
+            </label>
+        </div>
+    }
+
     @if (this.LoadError is not null)
     {
         <p class="err">@this.LoadError</p>
@@ -20,12 +35,29 @@
     {
         <section>
             <h3>Density &amp; split points</h3>
+            @if (this._danDefinitions.Count > 0)
+            {
+                <div class="row">
+                    <label>
+                        Load preset:
+                        <select @onchange="this.OnPresetSelected">
+                            <option value="">-- Select a preset --</option>
+                            @foreach (var preset in this._danDefinitions)
+                            {
+                                <option value="@preset.Name">@preset.Name</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+            }
             <DensitySplitView @ref="this.densitySplitView" Beatmap="@this.Beatmap" AudioSrc="@this.AudioSrc"
                               SplitPointChanged="e => this.OnSplitMsChanged(e)" />
         </section>
 
         <section>
             <h3>Dan level names</h3>
+            <button @onclick="this.UseLNNames">Use LN Names</button>
+            <button @onclick="this.UseRegularNames">Use Regular Names</button>
             <div class="grid-4">
                 @for (int i = 0; i < 4; i++)
                 {

@@ -2,12 +2,16 @@
 using Coosu.Database.DataTypes;
 using StarRatingRebirth;
 using System.Buffers;
+using System.Collections.Immutable;
 using System.Text;
 
 namespace SixKeyToolbox.OsuHelpers;
 
 public static class OsuExtensions
 {
+	public static readonly ImmutableArray<string> RegularDanSections = ["Jack", "Tech", "Stream", "Speed"];
+	public static readonly ImmutableArray<string> LNDanSections = ["Hybrid", "Speed", "Inverse", "Release"];
+
 	extension(Mods self)
 	{
 		public bool? ToRatingFlag()

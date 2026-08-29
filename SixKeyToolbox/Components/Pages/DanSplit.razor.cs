@@ -9,10 +9,18 @@ using SixKeyToolbox.Services;
 
 namespace SixKeyToolbox.Components.Pages;
 
+public class OsuFileOption
+{
+	public string Path { get; set; } = "";
+	public string DisplayName { get; set; } = "";
+}
+
 public partial class DanSplit : ComponentBase, IAsyncDisposable
 {
 	private List<DanDefinition> _danDefinitions = [];
 	private DensitySplitView? densitySplitView;
+	private List<OsuFileOption> _osuFileOptions = [];
+	private string? _selectedOsuPath;
 
 	[Inject]
 	internal OsuLocalService LocalService { get; set; } = null!;
@@ -24,9 +32,10 @@ public partial class DanSplit : ComponentBase, IAsyncDisposable
 	public string? BeatmapTitle { get; set; }
 	public string? LoadError { get; set; }
 	public bool HasChart { get; set; }
+	public bool HasMultipleDifficulties => this._osuFileOptions.Count > 1;
 
 	public IReadOnlyList<SplitSection> SplitSections { get; set; } = [];
-	public List<string> SongNames { get; set; } = ["Jack", "Tech", "Stamina", "Speed"];
+	public List<string> SongNames { get; set; } = OsuExtensions.RegularDanSections.ToList();
 
 	public string? SaveMessage { get; set; }
 	public string SaveClass { get; set; } = "";
@@ -41,53 +50,41 @@ public partial class DanSplit : ComponentBase, IAsyncDisposable
 		await base.OnInitializedAsync();
 	}
 
-	private async Task TogglePlay()
-	{
-		if (this.AudioDuration <= 0 && this.AudioSrc is null) return;
-		this.IsPlaying = !this.IsPlaying;
-		if (this.IsPlaying)
-		{
-			await this.JS.InvokeVoidAsync("playAudio", this.AudioId);
-			_ = this.PollPositionAsync();
-		}
-		else
-		{
-			await this.JS.InvokeVoidAsync("pauseAudio", this.AudioId);
-		}
-	}
-
-	private async Task OnAudioMeta(EventArgs _)
-	{
-		this.AudioDuration = await this.JS.InvokeAsync<double>("getAudioDuration", this.AudioId);
-	}
-
-	private async Task PollPositionAsync()
-	{
-		while (this.IsPlaying)
-		{
-			this.AudioPos = await this.JS.InvokeAsync<double>("getAudioCurrentTime", this.AudioId);
-			if (this.AudioPos >= this.AudioDuration && this.AudioDuration > 0)
-			{
-				this.IsPlaying = false;
-				this.AudioPos = 0;
-				await this.JS.InvokeVoidAsync("pauseAudio", this.AudioId);
-				await this.JS.InvokeVoidAsync("setAudioCurrentTime", this.AudioId, 0);
-				break;
-			}
-			this.StateHasChanged();
-			await Task.Delay(200);
-		}
-		this.StateHasChanged();
-	}
-
 	private void OnSplitMsChanged(DensitySplitView view)
 	{
 		this.SplitSections = view.Sections;
 	}
 
+	private void UseLNNames()
+	{
+		this.SongNames = OsuExtensions.LNDanSections.ToList();
+	}
+	private void UseRegularNames()
+	{
+		this.SongNames = OsuExtensions.RegularDanSections.ToList();
+	}
+
+	private async Task OnPresetSelected(ChangeEventArgs e)
+	{
+		string? presetName = e.Value?.ToString();
+		if (string.IsNullOrEmpty(presetName)) return;
+
+		DanDefinition? preset = this._danDefinitions.FirstOrDefault(d => d.Name == presetName);
+		if (preset is null || this.densitySplitView is null) return;
+
+		await this.densitySplitView.ApplyPreset(preset);
+		this.SplitSections = this.densitySplitView.Sections;
+
+		for (int i = 0; i < Math.Min(preset.Sections.Count, this.SongNames.Count); i++)
+		{
+			this.SongNames[i] = preset.Sections[i].Name;
+		}
+	}
+
 	public async Task PickFolder()
 	{
 		this.LoadError = null;
+		this._osuFileOptions.Clear();
 		try
 		{
 			NativeFileDialogSharp.DialogResult pickResult = await this.LocalService.PickFolderAsync();
@@ -112,16 +109,70 @@ public partial class DanSplit : ComponentBase, IAsyncDisposable
 				return;
 			}
 
-			OsuFile osu = OsuFile.ReadFromFile(osuFiles[0]);
+			foreach (string path in osuFiles)
+			{
+				try
+				{
+					OsuFile osu = OsuFile.ReadFromFile(path);
+					string diffName = osu.Metadata?.Version ?? "Unknown";
+					this._osuFileOptions.Add(new OsuFileOption
+					{
+						Path = path,
+						DisplayName = diffName
+					});
+				}
+				catch
+				{
+					continue;
+				}
+			}
+
+			if (this._osuFileOptions.Count == 0)
+			{
+				this.LoadError = "No valid .osu files found.";
+				return;
+			}
+
+			this._selectedOsuPath = this._osuFileOptions[0].Path;
+			await this.LoadSelectedDifficulty();
+		}
+		catch (Exception ex)
+		{
+			this.LoadError = $"Error: {ex.Message}";
+		}
+	}
+
+	private async Task OnDifficultySelected(ChangeEventArgs e)
+	{
+		string? selected = e.Value?.ToString();
+		if (string.IsNullOrEmpty(selected)) return;
+
+		this._selectedOsuPath = selected;
+		await this.LoadSelectedDifficulty();
+	}
+
+	private async Task LoadSelectedDifficulty()
+	{
+		if (this._selectedOsuPath is null || !File.Exists(this._selectedOsuPath))
+		{
+			this.LoadError = "Selected file not found.";
+			return;
+		}
+
+		try
+		{
+			OsuFile osu = OsuFile.ReadFromFile(this._selectedOsuPath);
 			this.Beatmap = osu;
-			this._sourcePath = osuFiles[0];
-			this.BeatmapTitle = $"{osu.Metadata?.Artist} - {osu.Metadata?.Title}";
+			this._sourcePath = this._selectedOsuPath;
+			this.BeatmapTitle = $"{osu.Metadata?.Artist} - {osu.Metadata?.Title} [{osu.Metadata?.Version}]";
+
+			string folder = Path.GetDirectoryName(this._selectedOsuPath)!;
 			await this.LoadAudio(folder, osu);
 			this.HasChart = true;
 		}
 		catch (Exception ex)
 		{
-			this.LoadError = $"Error: {ex.Message}";
+			this.LoadError = $"Error loading difficulty: {ex.Message}";
 		}
 	}
 

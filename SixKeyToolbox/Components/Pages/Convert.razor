@@ -1,0 +1,67 @@
+@page "/convert"
+
+<PageTitle>Convert — SixKeyToolbox</PageTitle>
+
+<WinDialog Title="Beatmap Converting">
+    <p class="muted">Pick a folder of beatmaps to convert. Each <c>.osu</c> is processed and written back to the same folder with a suffix. Existing files are overwritten.</p>
+
+    <div class="row">
+        <label>
+            Conversion mode
+            <select @bind="this.Mode">
+                <option value="@ConversionMode.InverseLN">Inverse LN</option>
+                <option value="@ConversionMode.SevenKToSixK">7K to 6K (delete spacebar)</option>
+            </select>
+        </label>
+    </div>
+
+    @if (this.Mode == ConversionMode.InverseLN)
+    {
+        <p class="muted">Converts 6K beatmaps to inverse: every note except the last per column becomes an LN ending <c>gap</c> before the next note. Output suffix: <c>@("@Inverse")</c></p>
+        <div class="row">
+            <label>
+                Gap
+                <select @bind="this.GapPreset">
+                    @foreach (var g in GapPresets)
+                    {
+                        <option value="@g">@g</option>
+                    }
+                </select>
+            </label>
+            <label>
+                OD
+                <input type="number" step="0.1" min="0" max="10" @bind="this.OverallDifficulty" />
+            </label>
+        </div>
+    }
+    else
+    {
+        <p class="muted">Converts 7K beatmaps to 6K by removing the middle column (spacebar) and remapping the remaining columns. Output suffix: <c>@("@7to6DelSpace")</c></p>
+    }
+
+    <div class="row">
+        <button @onclick="this.PickAndConvert">Pick folder &amp; convert</button>
+    </div>
+
+    @if (this.ResultMessage is not null)
+    {
+        <p class="@this.ResultClass">@this.ResultMessage</p>
+    }
+    @if (this.ConvertedFiles.Count > 0)
+    {
+        <ul>
+            @foreach (var f in this.ConvertedFiles)
+            {
+                <li>@f</li>
+            }
+        </ul>
+    }
+</WinDialog>
+
+<style>
+    .row { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin-bottom: 1rem; }
+    label { display: flex; flex-direction: column; }
+    .muted { opacity: .6; }
+    .ok { color: #6fcf6f; }
+    .err { color: #e06666; }
+</style>

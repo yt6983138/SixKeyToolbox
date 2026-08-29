@@ -11,9 +11,14 @@
 		<PackageReference Include="Coosu.Api" Version="2.5.1" />
 		<PackageReference Include="Coosu.Beatmap" Version="2.5.1" />
 		<PackageReference Include="Coosu.Database" Version="2.5.1" />
+		<PackageReference Include="MemoryPack" Version="1.21.4" />
 		<PackageReference Include="NativeFileDialogSharp" Version="0.5.0" />
 		<PackageReference Include="OsuParsers" Version="1.7.2" />
 		<PackageReference Include="StarRatingRebirth" Version="0.1.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Include="wwwroot\css\common.css" />
 	</ItemGroup>
 
 </Project>

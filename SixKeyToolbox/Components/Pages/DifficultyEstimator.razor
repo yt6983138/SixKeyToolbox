@@ -4,22 +4,22 @@
 
 <WinDialog Title="Difficulty Estimator">
     <section>
-        <h3>Beatmap</h3>
+        <h3>Beatmap(s)</h3>
         <label>
-            .osu file
-            <InputFile OnChange="this.OnFileSelected" accept=".osu" />
+            .osu file(s)
+            <InputFile OnChange="this.OnFilesSelected" accept=".osu" multiple />
         </label>
-        @if (this.ChartConstant is not null)
+        @if (this.Results.Count > 0)
         {
-            <p>Chart constant: <strong class="big">[@($"{this.ChartConstant.Value:F1}")]</strong></p>
+            <p class="muted">@this.Results.Count beatmap(s) loaded</p>
         }
         else if (this.FileError is not null)
         {
-            <p class="muted">@this.FileError</p>
+            <p class="err">@this.FileError</p>
         }
         else
         {
-            <p class="muted">Load a .osu to compute its chart constant.</p>
+            <p class="muted">Load .osu file(s) to compute chart constants.</p>
         }
     </section>
 
@@ -39,18 +39,18 @@
     </section>
 
     <section>
-        <h3>Rating</h3>
+        <h3>Rating (optional)</h3>
         <div class="mode-row">
             <label>
                 <input type="radio" name="ratingmode" value="accuracy"
                        checked="@(this.RatingMode == "accuracy")"
-                       @onchange="@(e => this.RatingMode = e.Value?.ToString() ?? "accuracy")" />
+                       @onchange="@(e => { this.RatingMode = e.Value?.ToString() ?? "accuracy"; this.RecalculateAll(); })" />
                 By accuracy
             </label>
             <label>
                 <input type="radio" name="ratingmode" value="judgements"
                        checked="@(this.RatingMode == "judgements")"
-                       @onchange="@(e => this.RatingMode = e.Value?.ToString() ?? "judgements")" />
+                       @onchange="@(e => { this.RatingMode = e.Value?.ToString() ?? "judgements"; this.RecalculateAll(); })" />
                 By judgement counts
             </label>
         </div>
@@ -60,35 +60,59 @@
             <label>
                 Accuracy (%)
                 <input type="number" step="0.01" min="0" max="100"
-                       @bind="this.AccuracyInput" @bind:event="oninput" />
+                       @bind="this.AccuracyInput" @bind:event="oninput"
+                       @bind:after="this.RecalculateAll" />
             </label>
         }
         else
         {
             <div class="grid-2">
-                <label>300G<input type="number" min="0" @bind="this.Judgement300G" @bind:event="oninput" /></label>
-                <label>300 <input type="number" min="0" @bind="this.Judgement300" @bind:event="oninput" /></label>
-                <label>200 <input type="number" min="0" @bind="this.Judgement200" @bind:event="oninput" /></label>
-                <label>100 <input type="number" min="0" @bind="this.Judgement100" @bind:event="oninput" /></label>
-                <label>50  <input type="number" min="0" @bind="this.Judgement50"  @bind:event="oninput" /></label>
-                <label>Miss<input type="number" min="0" @bind="this.JudgementMiss" @bind:event="oninput" /></label>
+                <label>300G<input type="number" min="0" @bind="this.Judgement300G" @bind:event="oninput" @bind:after="this.RecalculateAll" /></label>
+                <label>300 <input type="number" min="0" @bind="this.Judgement300" @bind:event="oninput" @bind:after="this.RecalculateAll" /></label>
+                <label>200 <input type="number" min="0" @bind="this.Judgement200" @bind:event="oninput" @bind:after="this.RecalculateAll" /></label>
+                <label>100 <input type="number" min="0" @bind="this.Judgement100" @bind:event="oninput" @bind:after="this.RecalculateAll" /></label>
+                <label>50  <input type="number" min="0" @bind="this.Judgement50"  @bind:event="oninput" @bind:after="this.RecalculateAll" /></label>
+                <label>Miss<input type="number" min="0" @bind="this.JudgementMiss" @bind:event="oninput" @bind:after="this.RecalculateAll" /></label>
             </div>
             <label class="checkbox">
-                <input type="checkbox" @bind="this.IsScoreV2" />
+                <input type="checkbox" @bind="this.IsScoreV2" @bind:after="this.RecalculateAll" />
                 Is score v2 (affects displayed accuracy only)
             </label>
-            <p class="muted">Displayed accuracy: @($"{this.DisplayedAccuracy:F2}%")</p>
-        }
-
-        @if (this.ChartConstant is not null)
-        {
-            <p>Rating: <strong class="big">@($"{this.EstimatedRating:F2}")</strong></p>
-        }
-        else
-        {
-            <p class="muted">Load a beatmap to see the rating.</p>
+            <p class="muted">Displayed accuracy: @this.DisplayedAccuracy.ToString(this._settings.AccuracyFormat)%</p>
         }
     </section>
+
+    @if (this.Results.Count > 0)
+    {
+        <section>
+            <h3>Results</h3>
+            <div class="results-table">
+                <div class="results-header">
+                    <span>Beatmap</span>
+                    <span>Chart Constant</span>
+                    @if (this.RatingAccuracy is not null)
+                    {
+                        <span>Rating</span>
+                    }
+                </div>
+                @foreach (var result in this.Results)
+                {
+                    <div class="results-row">
+                        <span class="beatmap-name">@result.Name</span>
+                        <span class="chart-constant">[@result.ChartConstant.ToString(this._settings.ChartConstantFormat)]</span>
+                        @if (result.Rating is not null)
+                        {
+                            <span class="rating">@result.Rating.Value.ToString(this._settings.AccuracyFormat)</span>
+                        }
+                        else if (this.RatingAccuracy is not null)
+                        {
+                            <span class="rating muted">—</span>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    }
 </WinDialog>
 
 <style>
@@ -96,10 +120,17 @@
     section h3 { margin: 0 0 .75rem; }
     .big { font-size: 1.4rem; }
     .muted { opacity: .6; }
+    .err { color: #e06666; }
     label { display: inline-flex; flex-direction: column; margin-right: 1rem; margin-bottom: .5rem; }
     .checkbox { flex-direction: row; align-items: center; gap: .5rem; }
-    .mod-row, .mode-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .mod-row, .mode-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
     .mod-row label, .mode-row label { flex-direction: row; align-items: center; gap: .4rem; }
-    .grid-2 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; max-width: 30rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; max-width: 30rem; margin-bottom: .75rem; }
     input[type="number"] { width: 5rem; }
+    .results-table { display: flex; flex-direction: column; gap: .5rem; }
+    .results-header { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; font-weight: 600; padding: .5rem .75rem; border-bottom: 2px solid var(--dialog-border, #444); }
+    .results-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; padding: .5rem .75rem; border: 1px solid var(--dialog-border, #444); }
+    .beatmap-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chart-constant { font-weight: 600; }
+    .rating { font-weight: 600; color: #5b8; }
 </style>

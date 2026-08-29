@@ -9,7 +9,7 @@ public partial class Config : ComponentBase
 	[Inject]
 	internal OsuLocalService LocalService { get; set; } = null!;
 
-	public string OsuBaseFolder { get; set; } = "";
+	public ToolSettings Settings { get; set; } = ToolSettings.Default;
 	public List<DanDefinition> DanPresets { get; set; } = [];
 
 	public string? SettingsMessage { get; set; }
@@ -19,8 +19,7 @@ public partial class Config : ComponentBase
 
 	protected override async Task OnInitializedAsync()
 	{
-		ToolSettings settings = await this.LocalService.GetSettingsAsync();
-		this.OsuBaseFolder = settings.OsuBaseFolder;
+		this.Settings = await this.LocalService.GetSettingsAsync();
 		this.DanPresets = await this.LocalService.GetDanDefinitionsAsync();
 	}
 
@@ -29,7 +28,7 @@ public partial class Config : ComponentBase
 		this.SettingsMessage = null;
 		try
 		{
-			await this.LocalService.SaveSettingsAsync(new ToolSettings { OsuBaseFolder = this.OsuBaseFolder });
+			await this.LocalService.SaveSettingsAsync(this.Settings);
 			this.SettingsMessage = "Saved.";
 			this.SettingsClass = "ok";
 		}

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using SixKeyToolbox.Models;
 using SixKeyToolbox.OsuHelpers;
+using SixKeyToolbox.Services;
 using StarRatingRebirth;
 
 namespace SixKeyToolbox.Components.Pages;
@@ -11,6 +13,15 @@ public enum SelectableMods
 	HT,
 	DT_NC
 }
+
+public class BeatmapResult
+{
+	public string Name { get; set; } = "";
+	public ManiaData Data { get; set; } = null!;
+	public double ChartConstant { get; set; }
+	public double? Rating { get; set; }
+}
+
 public partial class DifficultyEstimator : ComponentBase
 {
 	private static readonly Dictionary<SelectableMods, bool?> ModToFlag = new()
@@ -20,9 +31,11 @@ public partial class DifficultyEstimator : ComponentBase
 		{ SelectableMods.DT_NC, true },
 	};
 
-	private ManiaData? _maniaData;
+	[Inject]
+	internal OsuLocalService LocalService { get; set; } = null!;
 
-	public double? ChartConstant { get; set; }
+	private ToolSettings _settings = ToolSettings.Default;
+	public List<BeatmapResult> Results { get; set; } = [];
 	public string? FileError { get; set; }
 
 	public SelectableMods SelectedMod { get; set; } = SelectableMods.NM;
@@ -30,8 +43,8 @@ public partial class DifficultyEstimator : ComponentBase
 	public string RatingMode { get; set; } = "accuracy";
 	public double? AccuracyInput { get; set; }
 	public int Judgement300G { get; set; }
-	public int Judgement300 { get; set; }
 	public int Judgement200 { get; set; }
+	public int Judgement300 { get; set; }
 	public int Judgement100 { get; set; }
 	public int Judgement50 { get; set; }
 	public int JudgementMiss { get; set; }
@@ -51,38 +64,80 @@ public partial class DifficultyEstimator : ComponentBase
 			: RatingCalculator.CalculateAccuracy(
 				this.Judgement300G, this.Judgement300, this.Judgement200, this.Judgement100, this.Judgement50, this.JudgementMiss, this.IsScoreV2);
 
-	public double EstimatedRating =>
-		this.ChartConstant is { } cc && this.RatingAccuracy is { } acc
-			? RatingCalculator.Calculate6KRating(cc, acc)
-			: 0;
-
 	private int TotalJudgements =>
 		this.Judgement300G + this.Judgement300 + this.Judgement200 + this.Judgement100 + this.Judgement50 + this.JudgementMiss;
 
 	private bool? CurrentModFlag => ModToFlag[this.SelectedMod];
 
+	protected override async Task OnInitializedAsync()
+	{
+		this._settings = await this.LocalService.GetSettingsAsync();
+	}
+
 	private void OnModChanged(string? key)
 	{
 		this.SelectedMod = key is null ? SelectableMods.NM : Enum.Parse<SelectableMods>(key);
-		if (this._maniaData is not null)
-			this.ChartConstant = this._maniaData.Calculate6KChartConstant(this.CurrentModFlag);
+		this.RecalculateAll();
 	}
 
-	private async Task OnFileSelected(InputFileChangeEventArgs e)
+	private void RecalculateAll()
+	{
+		foreach (BeatmapResult result in this.Results)
+		{
+			result.ChartConstant = result.Data.Calculate6KChartConstant(this.CurrentModFlag);
+			result.Rating = this.RatingAccuracy is { } acc
+				? RatingCalculator.Calculate6KRating(result.ChartConstant, acc)
+				: null;
+		}
+	}
+
+	private async Task OnFilesSelected(InputFileChangeEventArgs e)
 	{
 		this.FileError = null;
+		this.Results.Clear();
+
 		try
 		{
-			IBrowserFile file = e.File;
-			int len = (int)Math.Min(file.Size, 10 * 1024 * 1024);
-			using Stream stream = file.OpenReadStream(len);
-			this._maniaData = await ManiaData.FromStreamAsync(stream, len);
-			this.ChartConstant = this._maniaData.Calculate6KChartConstant(this.CurrentModFlag);
+			foreach (IBrowserFile file in e.GetMultipleFiles(50))
+			{
+				try
+				{
+					int len = (int)Math.Min(file.Size, 10 * 1024 * 1024);
+					using Stream stream = file.OpenReadStream(len);
+					ManiaData maniaData = await ManiaData.FromStreamAsync(stream, len);
+					double cc = maniaData.Calculate6KChartConstant(this.CurrentModFlag);
+					double? rating = this.RatingAccuracy is { } acc
+						? RatingCalculator.Calculate6KRating(cc, acc)
+						: null;
+
+					this.Results.Add(new BeatmapResult
+					{
+						Name = file.Name,
+						Data = maniaData,
+						ChartConstant = cc,
+						Rating = rating
+					});
+				}
+				catch (Exception ex)
+				{
+					this.Results.Add(new BeatmapResult
+					{
+						Name = $"{file.Name} (error: {ex.Message})",
+						Data = null!,
+						ChartConstant = 0,
+						Rating = null
+					});
+				}
+			}
+
+			if (this.Results.Count == 0)
+			{
+				this.FileError = "No files loaded.";
+			}
 		}
 		catch (Exception ex)
 		{
-			this.FileError = $"Could not read .osu: {ex.Message}";
-			this.ChartConstant = null;
+			this.FileError = $"Error loading files: {ex.Message}";
 		}
 
 		this.StateHasChanged();
@@ -90,9 +145,6 @@ public partial class DifficultyEstimator : ComponentBase
 
 	protected override void OnParametersSet()
 	{
-		if (this._maniaData is not null)
-		{
-			this.ChartConstant = this._maniaData.Calculate6KChartConstant(this.CurrentModFlag);
-		}
+		this.RecalculateAll();
 	}
 }
