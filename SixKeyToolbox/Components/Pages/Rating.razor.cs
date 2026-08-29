@@ -62,6 +62,8 @@ public partial class Rating : ComponentBase
 			{
 				ConcurrentBag<RatingPlay> result = await this.LocalService.TryUpdatingPlaysOnceAsync();
 				this.Plays = result.OrderDescending().ToList();
+				// same reason in home
+				GC.Collect();
 			}
 			catch (Exception ex)
 			{

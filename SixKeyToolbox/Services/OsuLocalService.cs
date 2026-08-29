@@ -164,10 +164,19 @@ public partial class OsuLocalService
 				return;
 			}
 
-			Score[] maniaPlays = item.Scores.Where(s => s.GameMode == DbGameMode.Mania).ToArray();
-			Score? htMax = maniaPlays.Where(s => s.Mods.ToRatingFlag() == false).MaxBy(s => s.RatingAccuracy);
-			Score? dtMax = maniaPlays.Where(s => s.Mods.ToRatingFlag() == true).MaxBy(s => s.RatingAccuracy);
-			Score? nmMax = maniaPlays.Where(s => s.Mods.ToRatingFlag() == null).MaxBy(s => s.RatingAccuracy);
+			Score? htMax = null;
+			Score? dtMax = null;
+			Score? nmMax = null;
+			foreach (Score play in item.Scores)
+			{
+				if (play.GameMode != DbGameMode.Mania) continue;
+				if (play.Mods.ToRatingFlag() == false && play.RatingAccuracy > (htMax?.RatingAccuracy ?? 0))
+					htMax = play;
+				else if (play.Mods.ToRatingFlag() == true && play.RatingAccuracy > (dtMax?.RatingAccuracy ?? 0))
+					dtMax = play;
+				else if (play.Mods.ToRatingFlag() == null && play.RatingAccuracy > (nmMax?.RatingAccuracy ?? 0))
+					nmMax = play;
+			}
 
 			if (htMax is not null)
 			{

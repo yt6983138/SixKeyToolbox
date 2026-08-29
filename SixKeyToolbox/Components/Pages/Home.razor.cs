@@ -50,6 +50,8 @@ public partial class Home : ComponentBase
 				ConcurrentBag<RatingPlay> result = await this.LocalService.TryUpdatingPlaysOnceAsync();
 				this.TotalPlays = result.Count;
 				this.TopRating = !result.IsEmpty ? result.Max(p => p.Rating) : 0;
+				// i dont wanna use too much ram on user's pc, so forcing a collect here
+				GC.Collect();
 			}
 			catch (Exception ex)
 			{
