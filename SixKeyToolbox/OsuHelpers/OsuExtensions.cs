@@ -108,5 +108,16 @@ public static class OsuExtensions
 			// https://github.com/Siflorite/mania-rating-gui/blob/b5c8de4b3e83d82f6f83fe8220cb687eb4214280/src/db/ratings.rs#L279
 			return (SRCalculator.Calculate(self) * 200.0 / 81.0) + (7.0 / 6.0);
 		}
+		public double TryCalculate6KChartConstant(bool? modFlag = null, double defaultValue = 0)
+		{
+			try
+			{
+				return self.Calculate6KChartConstant(modFlag);
+			}
+			catch
+			{
+				return defaultValue;
+			}
+		}
 	}
 }

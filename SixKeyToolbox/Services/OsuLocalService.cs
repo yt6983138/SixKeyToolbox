@@ -164,6 +164,12 @@ public partial class OsuLocalService
 				return;
 			}
 
+			if (maniaData.CS != 6)
+			{
+				this._logger.LogDebug("Skipping non-6k charts {path}, {md5}", path, item.Hash);
+				return;
+			}
+
 			Score? htMax = null;
 			Score? dtMax = null;
 			Score? nmMax = null;
@@ -180,17 +186,17 @@ public partial class OsuLocalService
 
 			if (htMax is not null)
 			{
-				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, false), x => maniaData.Calculate6KChartConstant(false));
+				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, false), x => maniaData.TryCalculate6KChartConstant(false));
 				ratingPlays.Add(RatingPlay.FromScore(htMax, beatmap.TitleUnicode, beatmap.ArtistUnicode, cc));
 			}
 			if (dtMax is not null)
 			{
-				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, true), x => maniaData.Calculate6KChartConstant(true));
+				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, true), x => maniaData.TryCalculate6KChartConstant(true));
 				ratingPlays.Add(RatingPlay.FromScore(dtMax, beatmap.TitleUnicode, beatmap.ArtistUnicode, cc));
 			}
 			if (nmMax is not null)
 			{
-				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, null), x => maniaData.Calculate6KChartConstant(null));
+				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, null), x => maniaData.TryCalculate6KChartConstant(null));
 				ratingPlays.Add(RatingPlay.FromScore(nmMax, beatmap.TitleUnicode, beatmap.ArtistUnicode, cc));
 			}
 		});
