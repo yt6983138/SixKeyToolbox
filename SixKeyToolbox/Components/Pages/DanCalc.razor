@@ -23,7 +23,7 @@
                     @for (int i = 0; i < this.TopRecentReplays.Count; i++)
                     {
                         RecentReplay r = this.TopRecentReplays[i];
-                        <option value="@i">@($"{r.BeatmapTitle} — {r.Player} ({r.Timestamp:yyyy-MM-dd HH:mm})")</option>
+                        <option value="@i">@($"{r.BeatmapTitle} ({r.BeatmapDifficulty}) — {r.Player} ({r.Timestamp:yyyy-MM-dd HH:mm})")</option>
                     }
                 </select>
             </label>

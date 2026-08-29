@@ -7,6 +7,7 @@ namespace SixKeyToolbox.Models;
 public class RatingPlay : IComparable<RatingPlay>
 {
 	public required string Title { get; set; }
+	public required string DifficultyName { get; set; }
 	public required string Artist { get; set; }
 	public required double ChartConstant { get; set; }
 	public required string PlayerName { get; set; }
@@ -37,11 +38,12 @@ public class RatingPlay : IComparable<RatingPlay>
 	public string AccuracyText => $"{this.Accuracy:F2}%";
 	public string ModsText => this.Mods.ToString();
 
-	public static RatingPlay FromReplay(Replay replay, string title, string artist, double chartConstant)
+	public static RatingPlay FromReplay(Replay replay, string title, string difficultyName, string artist, double chartConstant)
 	{
 		return new RatingPlay
 		{
 			Title = title,
+			DifficultyName = difficultyName,
 			Artist = artist,
 			ChartConstant = chartConstant,
 			PlayerName = replay.PlayerName,
@@ -55,11 +57,12 @@ public class RatingPlay : IComparable<RatingPlay>
 			CountMiss = replay.CountMiss
 		};
 	}
-	public static RatingPlay FromScore(Score score, string title, string artist, double chartConstant)
+	public static RatingPlay FromScore(Score score, string title, string difficultyName, string artist, double chartConstant)
 	{
 		return new RatingPlay
 		{
 			Title = title,
+			DifficultyName = difficultyName,
 			Artist = artist,
 			ChartConstant = chartConstant,
 			PlayerName = score.Player,

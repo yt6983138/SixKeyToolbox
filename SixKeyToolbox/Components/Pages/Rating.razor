@@ -8,6 +8,16 @@
             Top N
             <input type="number" min="1" max="500" @bind="this.TopN" @bind:event="oninput" />
         </label>
+        <label>
+            Player
+            <select @onchange="this.OnPlayerChanged">
+                <option value="">All Players</option>
+                @foreach (string player in this._players)
+                {
+                    <option value="@player" selected="@(this._selectedPlayer == player)">@player</option>
+                }
+            </select>
+        </label>
         <button @onclick="() => this.Reload(true)" disabled="@this.IsUpdating">Reload</button>
     </div>
 
@@ -35,10 +45,12 @@
                     </div>
                     <div class="rating-meta">
                         <span class="title">@play.Title</span>
+                        <span class="difficulty">@play.DifficultyName</span>
                         <span class="artist">@play.Artist</span>
                     </div>
                     <div class="rating-sub">
                         <span>acc @play.Accuracy.ToString(this._settings.AccuracyFormat)%</span>
+                        <span>rating acc @play.RatingAccuracy.ToString(this._settings.AccuracyFormat)%</span>
                         <span class="mods">@play.ModsText</span>
                     </div>
                 </li>

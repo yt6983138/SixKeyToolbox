@@ -15,6 +15,7 @@ public class RecentReplay
 	public required int CountMiss { get; set; }
 	public required string BeatmapHash { get; set; }
 	public required string BeatmapTitle { get; set; }
+	public required string BeatmapDifficulty { get; set; }
 
 	public string Label => $"{this.BeatmapTitle} — {this.Player} ({this.Timestamp:yyyy-MM-dd HH:mm})";
 }

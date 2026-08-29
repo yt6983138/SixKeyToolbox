@@ -47,9 +47,10 @@ public partial class Home : ComponentBase
 		{
 			try
 			{
+				List<string> playerNames = await this.LocalService.GetPlayersAsync();
 				ConcurrentBag<RatingPlay> result = await this.LocalService.TryUpdatingPlaysOnceAsync();
 				this.TotalPlays = result.Count;
-				this.TopRating = !result.IsEmpty ? result.Max(p => p.Rating) : 0;
+				this.TopRating = !result.IsEmpty ? result.Where(x => x.PlayerName == playerNames[0]).Max(p => p.Rating) : 0;
 				// i dont wanna use too much ram on user's pc, so forcing a collect here
 				GC.Collect();
 			}

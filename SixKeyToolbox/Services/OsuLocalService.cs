@@ -46,12 +46,12 @@ public partial class OsuLocalService
 		Directory.CreateDirectory(_dataPathBase);
 	}
 
-	private async ValueTask<ScoresDb> GetScoresDbAsync()
+	public async ValueTask<ScoresDb> GetScoresDbAsync()
 	{
 		if (this._scoresDb is null) await this.ReloadDatabasesAsync();
 		return this._scoresDb!;
 	}
-	private async ValueTask<OsuDb> GetOsuDbAsync()
+	public async ValueTask<OsuDb> GetOsuDbAsync()
 	{
 		if (this._osuDb is null) await this.ReloadDatabasesAsync();
 		return this._osuDb!;
@@ -187,17 +187,17 @@ public partial class OsuLocalService
 			if (htMax is not null)
 			{
 				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, false), x => maniaData.TryCalculate6KChartConstant(false));
-				ratingPlays.Add(RatingPlay.FromScore(htMax, beatmap.TitleUnicode, beatmap.ArtistUnicode, cc));
+				ratingPlays.Add(RatingPlay.FromScore(htMax, beatmap.TitleUnicode, beatmap.Difficulty, beatmap.ArtistUnicode, cc));
 			}
 			if (dtMax is not null)
 			{
 				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, true), x => maniaData.TryCalculate6KChartConstant(true));
-				ratingPlays.Add(RatingPlay.FromScore(dtMax, beatmap.TitleUnicode, beatmap.ArtistUnicode, cc));
+				ratingPlays.Add(RatingPlay.FromScore(dtMax, beatmap.TitleUnicode, beatmap.Difficulty, beatmap.ArtistUnicode, cc));
 			}
 			if (nmMax is not null)
 			{
 				double cc = this._beatmapChartConstantCache.GetOrAdd(new(item.Hash, null), x => maniaData.TryCalculate6KChartConstant(null));
-				ratingPlays.Add(RatingPlay.FromScore(nmMax, beatmap.TitleUnicode, beatmap.ArtistUnicode, cc));
+				ratingPlays.Add(RatingPlay.FromScore(nmMax, beatmap.TitleUnicode, beatmap.Difficulty, beatmap.ArtistUnicode, cc));
 			}
 		});
 		this.RatingCache = ratingPlays;
@@ -215,7 +215,7 @@ public partial class OsuLocalService
 		{
 			foreach (Score score in item.Scores)
 			{
-				string title = osuDb.Beatmaps.FirstOrDefault(b => b.Md5Hash == item.Hash)?.TitleUnicode ?? $"<unknown {item.Hash}>";
+				Beatmap? beatmap = osuDb.Beatmaps.FirstOrDefault(b => b.Md5Hash == item.Hash);
 				replays.Add(new RecentReplay
 				{
 					Timestamp = score.Timestamp,
@@ -228,12 +228,34 @@ public partial class OsuLocalService
 					Count50 = score.Count50,
 					CountMiss = score.CountMiss,
 					BeatmapHash = item.Hash,
-					BeatmapTitle = title
+					BeatmapTitle = beatmap?.TitleUnicode ?? $"<unknown {item.Hash}>",
+					BeatmapDifficulty = beatmap?.Difficulty ?? "",
 				});
 			}
 		}
 		replays.Sort((a, b) => b.Timestamp.CompareTo(a.Timestamp));
 		return replays;
+	}
+	/// <summary>
+	/// the first element is always the main player
+	/// </summary>
+	/// <returns></returns>
+	public async Task<List<string>> GetPlayersAsync()
+	{
+		OsuDb osuDb = await this.GetOsuDbAsync();
+		ScoresDb scoresDb = await this.GetScoresDbAsync();
+		HashSet<string> players = [];
+		foreach (ScoreBeatmap item in scoresDb.Beatmaps)
+		{
+			foreach (Score score in item.Scores)
+			{
+				players.Add(score.Player);
+			}
+		}
+		players.Remove(osuDb.PlayerName);
+		List<string> list = players.ToList();
+		list.Insert(0, osuDb.PlayerName);
+		return list;
 	}
 	public async Task<string?> ResolveBeatmapPathByHashAsync(string beatmapHash)
 	{
