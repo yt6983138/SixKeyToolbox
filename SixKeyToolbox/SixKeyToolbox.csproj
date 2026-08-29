@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<LangVersion>preview</LangVersion>
+		<Version>1.0.0</Version>
 
 		<ServerGarbageCollection>false</ServerGarbageCollection>
 	</PropertyGroup>
@@ -18,9 +18,4 @@
 		<PackageReference Include="OsuParsers" Version="1.7.2" />
 		<PackageReference Include="StarRatingRebirth" Version="0.1.1" />
 	</ItemGroup>
-
-	<ItemGroup>
-	  <None Include="wwwroot\css\common.css" />
-	</ItemGroup>
-
 </Project>
