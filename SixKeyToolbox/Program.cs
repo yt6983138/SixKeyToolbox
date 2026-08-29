@@ -1,12 +1,31 @@
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using SixKeyToolbox.Components;
 using SixKeyToolbox.Services;
+using System.Diagnostics;
 
 namespace SixKeyToolbox;
 
 public class Program
 {
-	public static void Main(string[] args)
+	private static void StartUrl(string url)
 	{
+		Process.Start(new ProcessStartInfo
+		{
+			FileName = url,
+			UseShellExecute = true
+		});
+	}
+
+	public static async Task Main(string[] args)
+	{
+		Process currentProcess = Process.GetCurrentProcess();
+		if (Process.GetProcesses().Any(x => x.ProcessName == currentProcess.ProcessName && x.Id != currentProcess.Id))
+		{
+			StartUrl(new Uri(Path.GetFullPath("./wwwroot/AlreadyRunning.html")).AbsoluteUri);
+			throw new InvalidOperationException("Another instance of toolbox is already running!");
+		}
+
 		WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 		// Add services to the container.
@@ -16,22 +35,23 @@ public class Program
 
 		WebApplication app = builder.Build();
 
-		// Configure the HTTP request pipeline.
-		if (!app.Environment.IsDevelopment())
-		{
-			app.UseExceptionHandler("/Error");
-			// The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-			app.UseHsts();
-		}
-
-		app.UseHttpsRedirection();
-
 		app.UseStaticFiles();
 		app.UseAntiforgery();
 
 		app.MapRazorComponents<App>()
 			.AddInteractiveServerRenderMode();
 
-		app.Run();
+		await app.StartAsync();
+
+		IServer server = app.Services.GetRequiredService<IServer>();
+		IServerAddressesFeature? addressFeature = server.Features.Get<IServerAddressesFeature>();
+		if (addressFeature is not null && builder.Configuration.GetValue<bool>("StartBrowserImmediately"))
+		{
+			// prefer http since this is a local app and https may have certificate issues
+			string url = addressFeature.Addresses.FirstOrDefault(x => x.StartsWith("http://")) ?? addressFeature.Addresses.First();
+			StartUrl(url);
+		}
+
+		await app.WaitForShutdownAsync();
 	}
 }
