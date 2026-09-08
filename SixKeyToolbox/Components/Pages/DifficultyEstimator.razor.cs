@@ -4,6 +4,7 @@ using SixKeyToolbox.Models;
 using SixKeyToolbox.OsuHelpers;
 using SixKeyToolbox.Services;
 using StarRatingRebirth;
+using System.Text.Json;
 
 namespace SixKeyToolbox.Components.Pages;
 
@@ -33,6 +34,8 @@ public partial class DifficultyEstimator : ComponentBase
 
 	[Inject]
 	internal OsuLocalService LocalService { get; set; } = null!;
+	[Inject]
+	internal ILogger<DifficultyEstimator> Logger { get; set; } = null!;
 
 	private ToolSettings _settings = ToolSettings.Default;
 	public List<BeatmapResult> Results { get; set; } = [];
@@ -84,11 +87,14 @@ public partial class DifficultyEstimator : ComponentBase
 	{
 		foreach (BeatmapResult result in this.Results)
 		{
-			result.ChartConstant = result.Data.TryCalculate6KChartConstant(this.CurrentModFlag);
+			// -1 was to test if its a render issue or it really returned nan, some users had issues with the chart constant being nan
+			result.ChartConstant = result.Data.TryCalculate6KChartConstant(this.CurrentModFlag, -1);
 			result.Rating = this.RatingAccuracy is { } acc
 				? RatingCalculator.Calculate6KRating(result.ChartConstant, acc)
 				: null;
 		}
+
+		this.StateHasChanged();
 	}
 
 	private async Task OnFilesSelected(InputFileChangeEventArgs e)
@@ -105,17 +111,26 @@ public partial class DifficultyEstimator : ComponentBase
 					int len = (int)Math.Min(file.Size, 10 * 1024 * 1024);
 					using Stream stream = file.OpenReadStream(len);
 					ManiaData maniaData = await ManiaData.FromStreamAsync(stream, len);
-					double cc = maniaData.TryCalculate6KChartConstant(this.CurrentModFlag);
-					double? rating = this.RatingAccuracy is { } acc
-						? RatingCalculator.Calculate6KRating(cc, acc)
-						: null;
+					this.Logger.LogInformation("Loaded {f} with {c} notes, od {od}, cs {cs}, checking for irregularities", file.Name, maniaData.Notes.Count, maniaData.OD, maniaData.CS);
+					for (int i = 0; i < maniaData.Notes.Count; i++)
+					{
+						// maybe we need to do more validation here,
+						// a user is reporting that some maps just shows nan, but it does work
+						// on my dev machine, so maybe we need to check if the notes are valid, or if the maniaData is valid
+						Note note = maniaData.Notes[i];
+						if (note.Key < 0 || note.Key >= maniaData.CS
+							|| note.Head < 0
+							|| (note.IsLong && note.Tail < note.Head))
+						{
+							this.Logger.LogWarning("Note {i} is invalid: {note}", i, JsonSerializer.Serialize(note));
+						}
+					}
+					this.Logger.LogInformation("Checking {f} done", file.Name);
 
 					this.Results.Add(new BeatmapResult
 					{
 						Name = file.Name,
-						Data = maniaData,
-						ChartConstant = cc,
-						Rating = rating
+						Data = maniaData
 					});
 				}
 				catch (Exception ex)
@@ -140,7 +155,7 @@ public partial class DifficultyEstimator : ComponentBase
 			this.FileError = $"Error loading files: {ex.Message}";
 		}
 
-		this.StateHasChanged();
+		this.RecalculateAll();
 	}
 
 	protected override void OnParametersSet()
