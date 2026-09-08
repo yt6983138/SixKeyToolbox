@@ -9,7 +9,8 @@ namespace SixKeyToolbox.Components.Pages;
 public enum ConversionMode
 {
 	InverseLN,
-	SevenKToSixK
+	SevenKToSixK,
+	ColumnMapping
 }
 
 public partial class Convert : ComponentBase
@@ -23,14 +24,44 @@ public partial class Convert : ComponentBase
 	public string GapPreset { get; set; } = "1/8";
 	public double OverallDifficulty { get; set; } = 6;
 
+	public int TargetKeyCount { get; set; } = 6;
+	public List<int> ColumnMappings { get; set; } = [0, 0, 1, 2, 3, 4];
+	public int SourceKeyCount { get; set; }
+
+	public string? SelectedFolder { get; set; }
+	public List<BeatmapFile> AvailableFiles { get; set; } = [];
+
 	public string? ResultMessage { get; set; }
 	public string ResultClass { get; set; } = "";
 	public List<string> ConvertedFiles { get; set; } = [];
 
-	public async Task PickAndConvert()
+	public class BeatmapFile
+	{
+		public required string Path { get; set; }
+		public required string FileName { get; set; }
+		public bool IsSelected { get; set; } = true;
+	}
+
+	public void UpdateMappingArray()
+	{
+		if (this.ColumnMappings.Count == this.TargetKeyCount) return;
+
+		List<int> newMappings = [];
+		for (int i = 0; i < this.TargetKeyCount; i++)
+		{
+			if (i < this.ColumnMappings.Count)
+				newMappings.Add(this.ColumnMappings[i]);
+			else
+				newMappings.Add(0);
+		}
+		this.ColumnMappings = newMappings;
+	}
+
+	public async Task PickFolder()
 	{
 		this.ResultMessage = null;
 		this.ConvertedFiles = [];
+		this.AvailableFiles = [];
 		try
 		{
 			NativeFileDialogSharp.DialogResult pickResult = await this.LocalService.PickFolderAsync();
@@ -48,6 +79,7 @@ public partial class Convert : ComponentBase
 				return;
 			}
 
+			this.SelectedFolder = folder;
 			string[] osuFiles = Directory.GetFiles(folder, "*.osu", SearchOption.TopDirectoryOnly);
 			if (osuFiles.Length == 0)
 			{
@@ -55,32 +87,77 @@ public partial class Convert : ComponentBase
 				return;
 			}
 
-			int ok = 0;
 			foreach (string path in osuFiles)
 			{
-				string outPath = this.Mode == ConversionMode.InverseLN
-					? this.GetInversePath(path)
-					: this.Get7to6Path(path);
+				this.AvailableFiles.Add(new BeatmapFile
+				{
+					Path = path,
+					FileName = Path.GetFileName(path),
+					IsSelected = true
+				});
+			}
+
+			this.SetResult(true, $"Loaded {this.AvailableFiles.Count} beatmap(s). Select files to convert and click Convert.");
+		}
+		catch (Exception ex)
+		{
+			this.SetResult(false, $"Error: {ex.Message}");
+		}
+	}
+
+	public async Task ConvertSelected()
+	{
+		this.ResultMessage = null;
+		this.ConvertedFiles = [];
+
+		List<BeatmapFile> selectedFiles = this.AvailableFiles.Where(f => f.IsSelected).ToList();
+		if (selectedFiles.Count == 0)
+		{
+			this.SetResult(false, "No files selected. Please select at least one file to convert.");
+			return;
+		}
+
+		try
+		{
+			int ok = 0;
+			foreach (BeatmapFile file in selectedFiles)
+			{
+				string path = file.Path;
+				string outPath = this.Mode switch
+				{
+					ConversionMode.InverseLN => this.GetInversePath(path),
+					ConversionMode.SevenKToSixK => this.Get7to6Path(path),
+					ConversionMode.ColumnMapping => this.GetColumnMappingPath(path),
+					_ => path
+				};
 				string name = Path.GetFileName(outPath);
 
 				if (this.Mode == ConversionMode.InverseLN)
 				{
 					await Task.Run(() => this.ConvertOneInverse(path, outPath));
 				}
-				else
+				else if (this.Mode == ConversionMode.SevenKToSixK)
 				{
 					OsuFile osu = OsuFile.ReadFromFile(path);
 					if (osu.Difficulty!.CircleSize != 7) continue;
 					await Task.Run(() => this.Convert7KTo6K(osu, outPath));
+				}
+				else if (this.Mode == ConversionMode.ColumnMapping)
+				{
+					await Task.Run(() => this.ConvertColumnMapping(path, outPath));
 				}
 
 				this.ConvertedFiles.Add(name);
 				ok++;
 			}
 
-			string resultMsg = this.Mode == ConversionMode.InverseLN
-				? $"Converted {ok} beatmap(s) to inverse."
-				: $"Converted {ok} beatmap(s) from 7K to 6K.";
+			string resultMsg = this.Mode switch
+			{
+				ConversionMode.InverseLN => $"Converted {ok} beatmap(s) to inverse.",
+				ConversionMode.SevenKToSixK => $"Converted {ok} beatmap(s) from 7K to 6K.",
+				ConversionMode.ColumnMapping => $"Converted {ok} beatmap(s) with column mapping to {this.TargetKeyCount}K.",
+				_ => $"Converted {ok} beatmap(s)."
+			};
 			this.SetResult(true, resultMsg);
 		}
 		catch (Exception ex)
@@ -183,6 +260,85 @@ public partial class Convert : ComponentBase
 		osu.Save(outPath);
 	}
 
+	private void ConvertColumnMapping(string inPath, string outPath)
+	{
+		OsuFile osu = OsuFile.ReadFromFile(inPath);
+
+		int sourceKeyCount = (int?)osu.Difficulty?.CircleSize ?? -1;
+		if (sourceKeyCount < 0)
+		{
+			this.SetResult(false, $"Invalid beatmap in {inPath}.");
+			return;
+		}
+
+		this.SourceKeyCount = sourceKeyCount;
+
+		List<RawHitObject> sourceHits = osu.HitObjects?.HitObjectList ?? [];
+		Dictionary<int, List<RawHitObject>> bySourceColumn = [];
+
+		foreach (RawHitObject h in sourceHits)
+		{
+			int col = h.GetColumn(sourceKeyCount);
+			if (!bySourceColumn.TryGetValue(col, out List<RawHitObject>? list))
+			{
+				list = [];
+				bySourceColumn[col] = list;
+			}
+			list.Add(h);
+		}
+
+		List<RawHitObject> newHits = [];
+		HashSet<int> warnedColumns = [];
+
+		for (int targetCol = 0; targetCol < this.TargetKeyCount; targetCol++)
+		{
+			if (targetCol >= this.ColumnMappings.Count) continue;
+
+			int mapping = this.ColumnMappings[targetCol];
+			if (mapping == 0) continue;
+
+			int sourceCol = mapping - 1;
+			if (sourceCol < 0 || sourceCol >= sourceKeyCount)
+			{
+				warnedColumns.Add(mapping);
+				continue;
+			}
+
+			if (!bySourceColumn.TryGetValue(sourceCol, out List<RawHitObject>? sourceNotes))
+				continue;
+
+			foreach (RawHitObject sourceNote in sourceNotes)
+			{
+				RawHitObject newNote = new()
+				{
+					Offset = sourceNote.Offset,
+					Y = sourceNote.Y,
+					RawType = sourceNote.RawType,
+					HoldEnd = sourceNote.HoldEnd,
+					X = (float)Math.Round(((targetCol * 512.0) + 256.0) / this.TargetKeyCount)
+				};
+				newHits.Add(newNote);
+			}
+		}
+
+		if (warnedColumns.Count > 0)
+		{
+			string warned = string.Join(", ", warnedColumns.OrderBy(x => x));
+			this.SetResult(false, $"Warning: Invalid source column(s) {warned} for {sourceKeyCount}K map. These columns were skipped.");
+		}
+
+		newHits.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+
+		string suffix = $"@{osu.Difficulty!.CircleSize}ColMap{string.Join(',', this.ColumnMappings)}";
+		osu.Metadata!.Title += suffix;
+		osu.Difficulty!.CircleSize = this.TargetKeyCount;
+		osu.Metadata!.TitleUnicode += suffix;
+		osu.Metadata?.TagList?.Add(suffix[1..].ToLowerInvariant());
+		osu.HitObjects!.HitObjectList = newHits;
+
+		osu.Save(outPath);
+	}
+
 	private double GetGapRatio()
 	{
 		return this.GapPreset switch
@@ -226,6 +382,15 @@ public partial class Convert : ComponentBase
 		string fn = Path.GetFileNameWithoutExtension(path);
 		if (!fn.EndsWith("@7to6DelSpace", StringComparison.Ordinal))
 			fn += "@7to6DelSpace";
+		return Path.Combine(dir, fn + ".osu");
+	}
+
+	private string GetColumnMappingPath(string path)
+	{
+		string dir = Path.GetDirectoryName(path)!;
+		string fn = Path.GetFileNameWithoutExtension(path);
+		if (!fn.EndsWith("@ColMap", StringComparison.Ordinal))
+			fn += "@ColMap";
 		return Path.Combine(dir, fn + ".osu");
 	}
 

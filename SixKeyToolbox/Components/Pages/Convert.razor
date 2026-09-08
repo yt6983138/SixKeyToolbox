@@ -11,6 +11,7 @@
             <select @bind="this.Mode">
                 <option value="@ConversionMode.InverseLN">Inverse LN</option>
                 <option value="@ConversionMode.SevenKToSixK">7K to 6K (delete spacebar)</option>
+                <option value="@ConversionMode.ColumnMapping">Column Mapping</option>
             </select>
         </label>
     </div>
@@ -34,14 +35,60 @@
             </label>
         </div>
     }
-    else
+    else if (this.Mode == ConversionMode.SevenKToSixK)
     {
         <p class="muted">Converts 7K beatmaps to 6K by removing the middle column (spacebar) and remapping the remaining columns. Output suffix: <c>@("@7to6DelSpace")</c></p>
     }
+    else if (this.Mode == ConversionMode.ColumnMapping)
+    {
+        <p class="muted">Maps source columns to target columns using a custom layout. Each target column is filled from a source column number (1-indexed, 0 = empty). Output suffix: <c>@("@ColMap")</c></p>
+        <div class="row">
+            <label>
+                Target key count
+                <input type="number" min="1" max="18" @bind="this.TargetKeyCount" @bind:after="this.UpdateMappingArray" />
+            </label>
+        </div>
+        <div class="mapping-grid">
+            <p class="muted">Column mapping (0 = empty, 1 = 1st source column, 2 = 2nd source column, etc.):</p>
+            <div class="mapping-inputs">
+                @for (int i = 0; i < this.TargetKeyCount; i++)
+                {
+                    int idx = i;
+                    <label class="mapping-col">
+                        Col @(i + 1)
+                        <input type="number" min="0" @bind="this.ColumnMappings[idx]" />
+                    </label>
+                }
+            </div>
+        </div>
+    }
 
     <div class="row">
-        <button @onclick="this.PickAndConvert">Pick folder &amp; convert</button>
+        <button @onclick="this.PickFolder">Pick folder</button>
     </div>
+
+    @if (this.AvailableFiles.Count > 0)
+    {
+        <div class="row">
+            <p class="muted">Select files to convert:</p>
+        </div>
+        <table class="file-selection">
+            <tr>
+                <th>Should Convert</th>
+                <th>File</th>
+            </tr>
+            @foreach (var file in this.AvailableFiles)
+            {
+                <tr>
+                    <td><input type="checkbox" @bind="file.IsSelected" /></td>
+                    <td>@file.FileName</td>
+                </tr>
+            }
+        </table>
+        <div class="row">
+            <button @onclick="this.ConvertSelected">Done Selecting</button>
+        </div>
+    }
 
     @if (this.ResultMessage is not null)
     {
@@ -64,4 +111,12 @@
     .muted { opacity: .6; }
     .ok { color: #6fcf6f; }
     .err { color: #e06666; }
+    .mapping-grid { margin-bottom: 1rem; }
+    .mapping-inputs { display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: .75rem; max-width: 40rem; }
+    .mapping-col { font-size: .9rem; }
+    .mapping-col input { width: 100%; }
+    .file-selection { margin: 1rem 0; }
+    .file-list { display: flex; flex-direction: column; gap: .5rem; max-height: 20rem; overflow-y: auto; padding: .5rem; border: 1px solid var(--dialog-border, #444); margin-bottom: 1rem; }
+    .file-item { display: flex; align-items: center; gap: .5rem; }
+    .file-item input[type="checkbox"] { margin: 0; }
 </style>
