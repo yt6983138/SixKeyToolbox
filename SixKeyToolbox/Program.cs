@@ -41,6 +41,20 @@ public class Program
 		app.MapRazorComponents<App>()
 			.AddInteractiveServerRenderMode();
 
+		// disable caching, probably not a good idea to disable everything
+		// but they are all hosted locally anyway so it should be fine for now
+		app.Use(async (context, next) =>
+		{
+			context.Response.OnStarting(() =>
+			{
+				context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+				context.Response.Headers.Pragma = "no-cache";
+				context.Response.Headers.Expires = "0";
+				return Task.CompletedTask;
+			});
+			await next(context);
+		});
+
 		await app.StartAsync();
 
 		IServer server = app.Services.GetRequiredService<IServer>();
