@@ -1,5 +1,6 @@
+#define AppPublishDir "..\SixKeyToolbox\bin\Release\net10.0\publish"
 #define MyAppName "SixKeyToolbox"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion GetFileVersion(AppPublishDir + "\SixKeyToolbox.exe")
 #define MyAppPublisher "yt6983138"
 #define MyAppURL "https://github.com/yt6983138/SixKeyToolbox"
 #define MyAppExeName "SixKeyToolbox.exe"
@@ -34,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\SixKeyToolbox\bin\Release\net10.0\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AppPublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
